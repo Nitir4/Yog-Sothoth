@@ -1,0 +1,46 @@
+__pycache__/
+*.py[cod]
+.venv/
+.test-data/
+auth.json
+.credentials.json
+antigravity-oauth-token
+/.agy-switcher/
+
+# Local credentials, account stores, and conversation data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.aws/
+.codex/
+.claude/
+.gemini/
+.agy-switcher/
+.codex-switcher/
+.claude-switcher/
+accounts/
+selected.json
+history.json
+history.jsonl
+session_index.jsonl
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+
+# Assistant workspace files and generated reports
+.agents/
+AGENTS.md
+progress.md
+implementation.md
+PLAN.md
+
+# Local packaging output
+build/
+dist/
+artifacts/
+*.AppImage
+*.exe
