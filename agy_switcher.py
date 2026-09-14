@@ -1,0 +1,327 @@
+"""Saved Google Antigravity CLI accounts using separate native data directories."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shlex
+import sqlite3
+import subprocess
+import sys
+
+from codex_switcher import Store, SwitcherError, account_name, atomic_write, find_executable, private_directory
+
+
+# The directory flags are currently hidden from AGY's public help. Only launch
+# a build whose native token-path and SSH/file-storage behavior was inspected.
+# An upstream update must be checked before adding its fingerprint here.
+SUPPORTED_SHA256 = "5f9c16b286895f8f7fdecd423883ca256a85077b8acf9a6bc1111761d34df164"
+SUPPORTED_SHA256S = frozenset({
+    SUPPORTED_SHA256,
+    # Linux 1.2.16: native directory flags and SSH/file storage inspected.
+    "a759ce7c7a235d9b6c281a25ead97cbbf2e92314a3ffd224e2f9144f3fae7a86",
+    # Installed Linux build: native directories, SSH/file OAuth, and history
+    # writes inspected; two temporary native MCP profiles verified isolation.
+    "c54ef90651a8646ae67334d39212c81f5946feec373ad6aa335f9ef401662bc5",
+})
+APP_DIRECTORY = "antigravity-cli"
+TOKEN_FILENAME = "antigravity-oauth-token"
+AUTH_OVERRIDES = (
+    "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_APPLICATION_CREDENTIALS",
+    "GOOGLE_GENAI_USE_ENTERPRISE", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_GEMINI_BASE_URL",
+    "AGY_LLM_GATEWAY_URL", "CLOUD_CODE_URL", "AGY_CLI_CDE_AUTH_ACTION",
+    "ANTIGRAVITY_VSCODE_HOST", "ANTIGRAVITY_CDE", "ANTIGRAVITY_LS_ADDRESS",
+    "ANTIGRAVITY_CSRF_TOKEN", "ANTIGRAVITY_SIDECAR_UI_TOKEN",
+    "ANTIGRAVITY_SIDECAR_WEB_PORT", "ANTIGRAVITY_CONVERSATION_ID",
+    "ANTIGRAVITY_PROJECT_ID",
+)
+
+
+def binary() -> str:
+    found = find_executable("agy", "agy")
+    if not found:
+        raise SwitcherError("Antigravity CLI was not found. Install it, or set AGY_SWITCHER_AGY to its executable.")
+    if Path(found).resolve() == Path(__file__).with_name("agy-switch").resolve():
+        raise SwitcherError("AGY_SWITCHER_AGY must point to the real AGY executable.")
+    return os.path.abspath(found)
+
+
+def fingerprint(executable: str) -> str:
+    digest = hashlib.sha256()
+    with open(executable, "rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def require_compatible(executable: str) -> None:
+    if not sys.platform.startswith("linux"):
+        raise SwitcherError("The AGY adapter currently supports the inspected Linux build only.")
+    if fingerprint(executable) not in SUPPORTED_SHA256S:
+        raise SwitcherError(
+            "This AGY build has not been verified for account isolation. Run 'agy-switch doctor'. "
+            "Its data-directory flags and SSH token storage must be checked before enabling it."
+        )
+
+
+def token_path(home: Path) -> Path:
+    return home / APP_DIRECTORY / TOKEN_FILENAME
+
+
+def read_token(path: Path) -> bytes:
+    if path.is_symlink():
+        raise SwitcherError("Refusing a symlink credential cache.")
+    try:
+        data = path.read_bytes()
+        value = json.loads(data)
+    except (OSError, ValueError):
+        raise SwitcherError("No readable, valid AGY file-based login cache found.") from None
+    token = value.get("token") if isinstance(value, dict) else None
+    if not isinstance(token, dict) or not all(
+        isinstance(token.get(key), str) and token[key]
+        for key in ("access_token", "refresh_token")
+    ):
+        raise SwitcherError("The AGY cache does not contain a saved OAuth login.")
+    return data
+
+
+def cached(home: Path) -> bool:
+    try:
+        if not token_path(home).parent.is_dir():
+            return False
+        private_directory(token_path(home).parent)
+        read_token(token_path(home))
+        return True
+    except SwitcherError:
+        return False
+
+
+def environment() -> dict[str, str]:
+    env = os.environ.copy()
+    for key in AUTH_OVERRIDES:
+        env.pop(key, None)
+    # AGY's native SSH detector selects file token storage for the lifetime of
+    # each token-storage object. This also uses its manual URL/code sign-in
+    # flow; it doesn't rewrite this shell's SSH variables or HOME.
+    env["SSH_CONNECTION"] = "127.0.0.1 0 127.0.0.1 0"
+    env["AGY_ADC_AUTH"] = "false"
+    env["AGY_CLI_DISABLE_AUTO_UPDATE"] = "true"
+    return env
+
+
+def command(executable: str, home: Path, args: list[str]) -> list[str]:
+    return [executable, f"--gemini_dir={home}", f"--app_data_dir={APP_DIRECTORY}",
+            "--use_host_auth=false", *args]
+
+
+def validate_forwarded(args: list[str]) -> None:
+    restricted = {
+        "gemini_dir", "app_data_dir", "use_host_auth", "host_bridge_url",
+        "read_host_bridge_token_from_stdin", "bg-updater", "remote-control",
+    }
+    value_flags = {
+        "add-dir", "agent", "conversation", "effort", "input-format",
+        "json-schema", "log-file", "mode", "model", "output-format", "p",
+        "print", "print-timeout", "project", "prompt", "i", "prompt-interactive",
+    }
+    skip_value = False
+    for arg in args:
+        if arg == "--":
+            break
+        if arg.startswith("-") and arg.lstrip("-").split("=", 1)[0] in restricted:
+            raise SwitcherError("The AGY switcher manages local data paths and authentication; this flag would override them.")
+        if skip_value:
+            skip_value = False
+            continue
+        if arg.startswith("-"):
+            skip_value = "=" not in arg and arg.lstrip("-") in value_flags
+        elif arg in ("remote-control", "update", "install"):
+            # These subcommands can reuse a global daemon or replace the
+            # inspected binary, including when preceded by ordinary flags.
+            raise SwitcherError("Use the native AGY command directly for installation, updates, or daemon management.")
+
+
+def login(store: Store, name: str) -> int:
+    from local_history import AGY, launch_history
+
+    executable = binary()
+    require_compatible(executable)
+    home = store.require(name)
+    private_directory(token_path(home).parent)
+    if token_path(home).is_symlink():
+        raise SwitcherError("Refusing a symlink credential cache.")
+    launch_history(store, home, AGY)
+    print(
+        f"Opening AGY for '{name}'. Complete its URL/code sign-in if prompted, "
+        "then type /exit to return to the switcher.", flush=True,
+    )
+    result = subprocess.call(command(executable, home, []), env=environment())
+    if result:
+        print(f"AGY exited with an error. Retry with: agy-switch login {name}", file=sys.stderr)
+        return result if result > 0 else 1
+    if not cached(home):
+        raise SwitcherError(f"No login was saved. Retry with: agy-switch login {name}")
+    if store.current() is None:
+        store.select(name)
+        print(f"Saved and selected '{name}'.")
+    else:
+        print(f"Saved '{name}'. Select it with: agy-switch use {name}")
+    return 0
+
+
+def add(store: Store, args: argparse.Namespace) -> int:
+    if args.source_home and not args.import_current:
+        raise SwitcherError("--source-home requires --import-current for AGY.")
+    executable = binary()
+    require_compatible(executable)
+    store.initialize()
+    home = store.home(args.name)
+    if home.exists() or home.is_symlink():
+        raise SwitcherError(f"Account '{args.name}' already exists. Use 'login {args.name}' to open its sign-in flow.")
+    source = Path(args.source_home or str(Path.home() / ".gemini")).expanduser().absolute()
+    data = read_token(token_path(source)) if args.import_current else None
+    home.mkdir(mode=0o700)
+    if data is None:
+        return login(store, args.name)
+    token_path(home).parent.mkdir(mode=0o700)
+    atomic_write(token_path(home), data)
+    if store.current() is None:
+        store.select(args.name)
+        print(f"Imported and selected '{args.name}'.")
+    else:
+        print(f"Imported '{args.name}'. Select it with: agy-switch use {args.name}")
+    return 0
+
+
+def use(store: Store, name: str) -> int:
+    require_compatible(binary())
+    home = store.require(name)
+    if not cached(home):
+        raise SwitcherError(f"No saved OAuth login for '{name}'. Run: agy-switch login {name}")
+    store.select(name)
+    print(f"Selected '{name}' for future launches. Running sessions keep their account.")
+    return 0
+
+
+def list_accounts(store: Store) -> int:
+    store.initialize()
+    selected = store.current()
+    names = sorted(path.name for path in store.accounts.iterdir() if path.is_dir() and not path.is_symlink())
+    if not names:
+        print("No saved accounts. Run: agy-switch add personal")
+    for name in names:
+        status = "OAuth login cached" if cached(store.require(name)) else "login needed"
+        print(f"{'*' if name == selected else ' '} {name}  ({status})")
+    return 0
+
+
+def run(store: Store, args: argparse.Namespace) -> int:
+    from local_history import AGY, launch_history
+
+    name = args.account or store.current()
+    if not name:
+        raise SwitcherError("No account selected. Run: agy-switch add personal")
+    executable = binary()
+    require_compatible(executable)
+    home = store.require(name)
+    forwarded = args.agy_args
+    if forwarded[:1] == ["--"]:
+        forwarded = forwarded[1:]
+    validate_forwarded(forwarded)
+    if forwarded[:1] not in (["--help"], ["-h"], ["help"]) and not cached(home):
+        raise SwitcherError(f"No saved OAuth login for '{name}'. Run: agy-switch login {name}")
+    launch_history(store, home, AGY)
+    print(f"AGY account: {name}", file=sys.stderr, flush=True)
+    argv = command(executable, home, forwarded)
+    os.execve(executable, argv, environment())
+    return 0
+
+
+def shell_init(shell: str) -> int:
+    executable = binary()
+    require_compatible(executable)
+    python = shlex.quote(sys.executable)
+    script = shlex.quote(str(Path(__file__).with_name("agy-switch").resolve()))
+    print(f"# agy-switcher integration for {shell}; affects this shell only")
+    print("agy() {")
+    print(f'  AGY_SWITCHER_AGY={shlex.quote(executable)} {python} {script} run -- "$@"')
+    print("}")
+    return 0
+
+
+def doctor() -> int:
+    executable = binary()
+    digest = fingerprint(executable)
+    supported = sys.platform.startswith("linux") and digest in SUPPORTED_SHA256S
+    print(f"AGY executable: {executable}")
+    print(f"SHA-256: {digest}")
+    print("Compatibility: " + ("inspected Linux build" if supported else "unverified; launches disabled"))
+    print("Profile mode: native data-directory flags + SSH/file-backed OAuth storage")
+    return 0 if supported else 1
+
+
+def parser() -> argparse.ArgumentParser:
+    result = argparse.ArgumentParser(description=__doc__)
+    commands = result.add_subparsers(dest="action", required=True)
+    add_parser = commands.add_parser("add", help="Save an account through AGY's normal sign-in flow")
+    add_parser.add_argument("name", type=account_name)
+    add_parser.add_argument("--import-current", action="store_true", help="Copy an existing file-backed OAuth login")
+    add_parser.add_argument("--source-home", help="Import source Gemini directory (default: ~/.gemini)")
+    for action, description in (("login", "Open a saved account to finish or renew sign-in"),
+                                ("use", "Select an account for future launches")):
+        subparser = commands.add_parser(action, help=description)
+        subparser.add_argument("name", type=account_name)
+    commands.add_parser("list", help="List accounts and locally cached login status")
+    commands.add_parser("current", help="Print the selected account name")
+    commands.add_parser("doctor", help="Check whether the installed AGY build is supported")
+    run_parser = commands.add_parser("run", help="Launch AGY; pass its arguments after --")
+    run_parser.add_argument("--account", type=account_name)
+    run_parser.add_argument("agy_args", nargs=argparse.REMAINDER)
+    shell_parser = commands.add_parser("shell-init", help="Print an optional agy shell function")
+    shell_parser.add_argument("shell", choices=("zsh", "bash"))
+    from local_history import add_parser
+
+    add_parser(commands)
+    return result
+
+
+def main(argv: list[str] | None = None) -> int:
+    os.umask(0o077)
+    args = parser().parse_args(argv)
+    store = Store("agy")
+    try:
+        if args.action == "add":
+            return add(store, args)
+        if args.action == "login":
+            return login(store, args.name)
+        if args.action == "use":
+            return use(store, args.name)
+        if args.action == "list":
+            return list_accounts(store)
+        if args.action == "current":
+            store.initialize()
+            name = store.current()
+            if not name:
+                raise SwitcherError("No account selected.")
+            print(name)
+            return 0
+        if args.action == "doctor":
+            return doctor()
+        if args.action == "run":
+            return run(store, args)
+        if args.action == "shell-init":
+            return shell_init(args.shell)
+        if args.action == "history":
+            from local_history import AGY, share, status
+
+            return share(store, args.source_home, AGY) if args.history_action == "share" else status(store, AGY)
+    except (SwitcherError, OSError, sqlite3.Error) as error:
+        print(f"agy-switch: {error}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        print("\nCancelled.", file=sys.stderr)
+        return 130
+    return 0
