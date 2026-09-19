@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Yog-Sothoth
+Comment=Manage coding accounts and resume conversations
+Exec=python3 @SWITCHER_SCRIPT@ gui
+TryExec=python3
+Path=@PROJECT_DIR@
+Icon=utilities-terminal
+Terminal=false
+StartupNotify=false
+Categories=Development;
+Keywords=Codex;Claude;Antigravity;Accounts;History;
