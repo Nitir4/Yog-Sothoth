@@ -20,6 +20,7 @@ import tempfile
 from urllib.parse import unquote, urlparse
 
 from codex_switcher import Store, SwitcherError, account_name, read_auth
+from switcher_runtime import cli_command
 
 TOOLS = {"codex": "Codex", "claude": "Claude Code", "agy": "Antigravity"}
 PROJECT = Path(__file__).resolve().parent
@@ -45,7 +46,8 @@ def store_for(tool: str) -> Store:
 
 
 def manager_environment() -> dict[str, str]:
-    env = os.environ.copy()
+    from switcher_runtime import external_environment
+    env = external_environment()
     for tool in TOOLS:
         env[f"{tool.upper()}_SWITCHER_HOME"] = str(store_for(tool).root)
     return env
@@ -360,7 +362,7 @@ def terminal_command(arguments: list[str], cwd: Path, *, lookup=shutil.which) ->
     cwd = cwd.expanduser().absolute()
     if not cwd.is_dir():
         raise SwitcherError(f"Project directory does not exist: {cwd}")
-    payload = [sys.executable, str(PROJECT / "switcher"), "_terminal", "--cwd", str(cwd), *arguments]
+    payload = cli_command(["_terminal", "--cwd", str(cwd), *arguments])
     override = os.environ.get("SWITCHER_TERMINAL")
     if override:
         try:

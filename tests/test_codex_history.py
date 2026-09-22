@@ -1,5 +1,6 @@
 """History migration and account switching, without network requests."""
 
+from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
@@ -54,11 +55,11 @@ class HistoryTest(unittest.TestCase):
         shared = self.store / "history"
         self.assertIn("History: shared", self.invoke("history").stdout)
         self.assertEqual(sum(1 for _ in shared.rglob("*.jsonl")), 5)
-        with sqlite3.connect(shared / "state_5.sqlite") as db:
+        with closing(sqlite3.connect(shared / "state_5.sqlite")) as db, db:
             rows = db.execute("SELECT id, rollout_path FROM threads").fetchall()
             self.assertEqual({row[0] for row in rows}, {"original", "personal", "work"})
             self.assertTrue(all(Path(row[1]).is_file() and str(shared) in row[1] for row in rows))
-        with sqlite3.connect(shared / "thread_history_1.sqlite") as db:
+        with closing(sqlite3.connect(shared / "thread_history_1.sqlite")) as db, db:
             self.assertEqual(db.execute("SELECT count(*) FROM thread_items").fetchone()[0], 3)
         for home, auth in zip(homes, auth_before):
             self.assertEqual((home / "auth.json").read_bytes(), auth)
@@ -108,7 +109,7 @@ class HistoryTest(unittest.TestCase):
             db.commit()
             self.assertGreater(Path(str(home / "thread_history_1.sqlite") + "-wal").stat().st_size, 0)
             self.invoke("history", "share")
-            with sqlite3.connect(self.store / "history" / "thread_history_1.sqlite") as shared:
+            with closing(sqlite3.connect(self.store / "history" / "thread_history_1.sqlite")) as shared, shared:
                 self.assertEqual(shared.execute("SELECT count(*) FROM thread_items").fetchone()[0], 2)
         finally:
             db.close()
@@ -118,7 +119,7 @@ class HistoryTest(unittest.TestCase):
         home = self.store / "accounts" / "personal"
         self.seed_history(home, "personal")
         self.seed_history(self.source, "original")
-        with sqlite3.connect(home / "state_5.sqlite") as db:
+        with closing(sqlite3.connect(home / "state_5.sqlite")) as db, db:
             db.execute("ALTER TABLE threads ADD COLUMN extra TEXT")
         self.invoke("history", "share", expected=1)
         self.assertFalse((self.store / "history.json").exists())

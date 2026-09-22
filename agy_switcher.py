@@ -100,7 +100,8 @@ def cached(home: Path) -> bool:
 
 
 def environment() -> dict[str, str]:
-    env = os.environ.copy()
+    from switcher_runtime import external_environment
+    env = external_environment()
     for key in AUTH_OVERRIDES:
         env.pop(key, None)
     # AGY's native SSH detector selects file token storage for the lifetime of
@@ -243,12 +244,8 @@ def run(store: Store, args: argparse.Namespace) -> int:
 def shell_init(shell: str) -> int:
     executable = binary()
     require_compatible(executable)
-    python = shlex.quote(sys.executable)
-    script = shlex.quote(str(Path(__file__).with_name("agy-switch").resolve()))
-    print(f"# agy-switcher integration for {shell}; affects this shell only")
-    print("agy() {")
-    print(f'  AGY_SWITCHER_AGY={shlex.quote(executable)} {python} {script} run -- "$@"')
-    print("}")
+    from switcher_runtime import shell_function
+    print(shell_function("agy", executable, shell))
     return 0
 
 
@@ -325,3 +322,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nCancelled.", file=sys.stderr)
         return 130
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

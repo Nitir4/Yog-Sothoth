@@ -1,8 +1,10 @@
 """Cross-account history and migration for Claude Code and Antigravity."""
 
+from contextlib import closing
 import json
 from pathlib import Path
 import sqlite3
+import sys
 import unittest
 
 import test_agy_switcher
@@ -90,6 +92,7 @@ class ClaudeHistoryTest(unittest.TestCase):
         self.assertEqual((self.store / "history" / "file-history" / "personal" / "uploaded.db").read_bytes(), b"opaque saved file contents")
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "Antigravity fingerprints cover Linux builds")
 class AgyHistoryTest(unittest.TestCase):
     setUp = test_agy_switcher.AgySwitcherTest.setUp
     tearDown = test_agy_switcher.AgySwitcherTest.tearDown
@@ -101,17 +104,17 @@ class AgyHistoryTest(unittest.TestCase):
         home = root / "antigravity-cli"
         conversation = home / "conversations" / (conversation_id + ".db")
         conversation.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(conversation) as db:
+        with closing(sqlite3.connect(conversation)) as db, db:
             db.execute("CREATE TABLE steps (idx INTEGER PRIMARY KEY, payload TEXT)")
             db.execute("INSERT INTO steps VALUES (0, 'saved message')")
         brain = home / "brain" / conversation_id
         brain.mkdir(parents=True)
         (brain / "artifact.md").write_text("saved artifact")
-        with sqlite3.connect(home / "conversation_summaries.db") as db:
+        with closing(sqlite3.connect(home / "conversation_summaries.db")) as db, db:
             db.execute("CREATE TABLE conversation_summaries (conversation_id TEXT PRIMARY KEY, last_modified_time TEXT, app_data_dir TEXT)")
             db.execute("INSERT INTO conversation_summaries VALUES (?, ?, ?)", (conversation_id, timestamp, str(home)))
         cache = home / "cache"
-        cache.mkdir()
+        cache.mkdir(mode=0o700)
         (cache / "last_conversations.json").write_text(json.dumps({"/same/workspace": conversation_id}))
         (cache / "conversation_metadata.json").write_text(json.dumps({"conversations": {
             conversation_id: {"last_modified_time": timestamp, "summary": {"app_data_dir": str(home)}}}}))
@@ -141,7 +144,7 @@ class AgyHistoryTest(unittest.TestCase):
             self.assertEqual((home / "cache" / "default_project_id.txt").read_text(), "account-project-" + root.name)
             self.assertEqual((home / "cache" / "onboarding.json").read_text(), '{"account-specific":true}')
             self.assertFalse((home / "cache").is_symlink())
-        with sqlite3.connect(shared / "conversation_summaries.db") as db:
+        with closing(sqlite3.connect(shared / "conversation_summaries.db")) as db, db:
             self.assertEqual({row[0] for row in db.execute("SELECT app_data_dir FROM conversation_summaries")}, {str(shared)})
         self.assertEqual(json.loads((shared / "cache" / "last_conversations.json").read_text())["/same/workspace"], "work")
         before = self.auth("work").read_bytes()
@@ -170,7 +173,7 @@ class AgyHistoryTest(unittest.TestCase):
             connection.execute("INSERT INTO steps VALUES (1, 'message in WAL')")
             connection.commit()
             self.invoke("history", "share", "--source-home", str(self.original))
-            with sqlite3.connect(self.store / "history" / "conversations" / "personal.db") as db:
+            with closing(sqlite3.connect(self.store / "history" / "conversations" / "personal.db")) as db, db:
                 self.assertEqual(db.execute("SELECT count(*) FROM steps").fetchone()[0], 2)
         finally:
             connection.close()
@@ -180,7 +183,7 @@ class AgyHistoryTest(unittest.TestCase):
         root = self.store / "accounts" / "personal"
         self.seed(root, "personal", "2026-10-05T10:00:00Z")
         self.seed(self.original, "original", "2026-10-05T09:00:00Z")
-        with sqlite3.connect(root / "antigravity-cli" / "conversation_summaries.db") as db:
+        with closing(sqlite3.connect(root / "antigravity-cli" / "conversation_summaries.db")) as db, db:
             db.execute("ALTER TABLE conversation_summaries ADD COLUMN extra TEXT")
         self.invoke("history", "share", "--source-home", str(self.original), expected=1)
         self.assertFalse((self.store / "history.json").exists())
@@ -191,7 +194,7 @@ class AgyHistoryTest(unittest.TestCase):
         self.import_account("work")
         self.seed(self.original, "original", "2026-10-05T09:00:00Z")
         home = self.store / "accounts" / "work" / "antigravity-cli"
-        with sqlite3.connect(home / "conversation_summaries.db") as db:
+        with closing(sqlite3.connect(home / "conversation_summaries.db")) as db, db:
             db.execute("CREATE TABLE conversation_summaries (conversation_id TEXT PRIMARY KEY)")
         self.invoke("history", "share", "--source-home", str(self.original))
         self.assertEqual(json.loads(self.invoke("run", "--account", "work", "--", "history-fixture-list").stdout), ["original"])

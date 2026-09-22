@@ -173,6 +173,8 @@ def rewrite_rollout_paths(connection: sqlite3.Connection, source: Path, final: P
 
 def share(store: Store, source: str | None) -> int:
     store.initialize()
+    from switcher_runtime import check_history_links
+    check_history_links(store.root)
     homes = [store.require(p.name) for p in sorted(store.accounts.iterdir()) if p.is_dir() and not p.is_symlink()]
     enabled = shared_home(store)
     if enabled is not None:

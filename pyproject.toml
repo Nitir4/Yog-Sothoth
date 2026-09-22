@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yog-sothoth-switcher"
+version = "0.2.0"
+description = "Local coding-tool account and conversation manager"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/Nitir4/Yog-Sothoth"
+
+[project.scripts]
+yog-sothoth = "switcher_cli:main"
+switcher = "switcher_cli:main"
+codex-switch = "codex_switcher:main"
+claude-switch = "claude_switcher:main"
+agy-switch = "agy_switcher:main"
+
+[tool.setuptools]
+py-modules = ["switcher_cli", "switcher_manager", "switcher_gui", "switcher_runtime",
+              "switcher_setup", "codex_switcher", "codex_history", "claude_switcher", "agy_switcher", "local_history"]

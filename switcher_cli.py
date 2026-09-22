@@ -12,14 +12,19 @@ import sys
 
 from codex_switcher import SwitcherError
 from switcher_manager import TOOLS, adapter, as_data, conversations, launch_arguments, states, store_for
+from switcher_runtime import VERSION
+from switcher_setup import INSTALL_GUIDES, setup_hint
 
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="Manage Codex, Claude Code, and Antigravity accounts and history.")
+    result.add_argument("--version", action="version", version=f"Yog-Sothoth {VERSION}")
     commands = result.add_subparsers(dest="action", required=True)
     for tool, label in TOOLS.items():
         commands.add_parser(tool, help=f"Forward commands to the {label} adapter", add_help=False)
     commands.add_parser("gui", help="Open the native GTK 4 desktop manager")
+    doctor = commands.add_parser("doctor", help="Check CLI availability and show setup guidance")
+    doctor.add_argument("--json", action="store_true")
     status = commands.add_parser("status", help="Show all stores, accounts, and cached login status")
     status.add_argument("--json", action="store_true")
     history = commands.add_parser("history", help="Browse saved conversations across tools")
@@ -51,7 +56,8 @@ def terminal(arguments: list[str]) -> int:
     if not cwd.is_dir() or not args.command:
         raise SwitcherError("Choose an existing project directory and a command.")
     print("$ " + shlex.join(["switcher", *args.command]), flush=True)
-    code = subprocess.call([sys.executable, str(Path(__file__).with_name("switcher")), *args.command], cwd=cwd)
+    # Keep this process (and its AppImage mount) alive while the CLI executes.
+    code = subprocess.call([sys.executable, str(Path(__file__).resolve()), *args.command], cwd=cwd)
     print(f"\nCommand finished (exit {code}). Refresh the manager to see updates.", flush=True)
     if sys.stdin.isatty():
         try:
@@ -73,9 +79,21 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 from switcher_gui import run
             except (ImportError, ValueError):
-                raise SwitcherError("The desktop manager requires PyGObject and GTK 4.10+. See README's desktop setup.") from None
+                raise SwitcherError("The desktop manager requires PyGObject and GTK 4.6+. See README's desktop setup.") from None
             return run()
         snapshot = states()
+        if args.action == "doctor":
+            checks = [{**as_data(s), "next_step": setup_hint(s), "install_guide": INSTALL_GUIDES[s.tool]}
+                      for s in snapshot]
+            if args.json:
+                print(json.dumps({"version": VERSION, "platform": sys.platform, "tools": checks}, indent=2))
+            else:
+                print(f"Yog-Sothoth {VERSION} · {sys.platform}")
+                for check in checks:
+                    print(f"{check['label']}: {check['next_step']}")
+                    if not check["available"]:
+                        print("  " + check["install_guide"])
+            return 0
         if args.action == "status":
             if args.json:
                 print(json.dumps([as_data(state) for state in snapshot], indent=2))
@@ -121,3 +139,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         return 130
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

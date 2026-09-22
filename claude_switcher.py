@@ -36,7 +36,8 @@ def binary() -> str:
 
 
 def environment(home: Path) -> dict[str, str]:
-    env = os.environ.copy()
+    from switcher_runtime import external_environment
+    env = external_environment()
     for variable in AUTH_VARIABLES:
         env.pop(variable, None)
     env["CLAUDE_CONFIG_DIR"] = str(home)
@@ -143,13 +144,8 @@ def run(store: Store, args: argparse.Namespace) -> int:
 
 
 def shell_init(shell: str) -> int:
-    executable = shlex.quote(binary())
-    python = shlex.quote(sys.executable)
-    script = shlex.quote(str(Path(__file__).with_name("claude-switch").resolve()))
-    print(f"# claude-switcher integration for {shell}; affects this shell only")
-    print("claude() {")
-    print(f'  CLAUDE_SWITCHER_CLAUDE={executable} {python} {script} run -- "$@"')
-    print("}")
+    from switcher_runtime import shell_function
+    print(shell_function("claude", binary(), shell))
     return 0
 
 
@@ -167,7 +163,7 @@ def parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--account", type=account_name)
     run_parser.add_argument("claude_args", nargs=argparse.REMAINDER)
     shell_parser = commands.add_parser("shell-init", help="Print an optional claude shell function")
-    shell_parser.add_argument("shell", choices=("zsh", "bash"))
+    shell_parser.add_argument("shell", choices=("zsh", "bash", "powershell"))
     from local_history import add_parser
 
     add_parser(commands)
@@ -209,3 +205,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nCancelled.", file=sys.stderr)
         return 130
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

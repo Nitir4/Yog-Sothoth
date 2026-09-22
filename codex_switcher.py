@@ -29,7 +29,7 @@ def account_name(value: str) -> str:
 
 
 def private_directory(path: Path) -> None:
-    if path.is_symlink():
+    if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
         raise SwitcherError(f"Refusing a symlink directory: {path}")
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
     info = path.stat()
@@ -38,6 +38,9 @@ def private_directory(path: Path) -> None:
     if os.name == "posix":
         if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
             raise SwitcherError(f"Storage must be owned by you and private (chmod 700): {path}")
+    elif os.name == "nt":
+        from switcher_runtime import private_windows_directory
+        private_windows_directory(path)
 
 
 def atomic_write(path: Path, data: bytes) -> None:
@@ -120,6 +123,32 @@ def find_executable(tool: str, command_name: str) -> str | None:
     # An explicit executable override must still fail if it cannot be found.
     if not found and override not in os.environ:
         found = shutil.which(str(Path.home() / ".local" / "bin" / command_name))
+    if os.name == "nt":
+        shim = found
+        if found and Path(found).suffix.lower() in (".cmd", ".bat", ".ps1"):
+            if override in os.environ:
+                raise SwitcherError(f"{override} must point to a native .exe, not a shell shim.")
+            found = None
+        if not found and override not in os.environ:
+            found = shutil.which(command_name + ".exe") or shutil.which(
+                str(Path.home() / ".local" / "bin" / (command_name + ".exe")))
+        if not found and override not in os.environ and tool == "codex":
+            # npm installs expose a shell shim beside the packaged native binary.
+            import platform
+            arch = "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x64"
+            triple = "aarch64" if arch == "arm64" else "x86_64"
+            npm_roots = [Path(os.environ.get("APPDATA", str(Path.home() / "AppData/Roaming"))) / "npm"]
+            if shim:
+                npm_roots.insert(0, Path(shim).parent)
+            for root in npm_roots:
+                scope = root / "node_modules/@openai"
+                packages = [scope / ("codex-win32-" + arch),
+                            scope / "codex/node_modules/@openai" / ("codex-win32-" + arch), scope / "codex"]
+                for package in packages:
+                    for directory in ("bin", "codex"):
+                        path = package / "vendor" / (triple + "-pc-windows-msvc") / directory / "codex.exe"
+                        if path.is_file():
+                            return str(path)
     return found
 
 
@@ -133,7 +162,8 @@ def binary() -> str:
 
 
 def environment(home: Path) -> dict[str, str]:
-    env = os.environ.copy()
+    from switcher_runtime import external_environment
+    env = external_environment()
     for key in ("OPENAI_API_KEY", "CODEX_ACCESS_TOKEN", "CODEX_SQLITE_HOME"):
         env.pop(key, None)
     env["CODEX_HOME"] = str(home)
@@ -274,7 +304,7 @@ def run(store: Store, args: argparse.Namespace) -> int:
     # Current Codex versions can reuse a shared daemon. Keep this launch local
     # so the selected home always determines authentication. Older versions
     # predate this flag and already ran locally.
-    help_result = subprocess.run([executable, "--help"], capture_output=True)
+    help_result = subprocess.run([executable, "--help"], env=environment(home), capture_output=True)
     flags = ["--no-daemon"] if b"--no-daemon" in help_result.stdout else []
     print(f"Codex account: {name}", file=sys.stderr, flush=True)
     argv = command(executable, home, [*flags, *forwarded], sqlite_home=launch_history(store, home))
@@ -284,13 +314,8 @@ def run(store: Store, args: argparse.Namespace) -> int:
 
 
 def shell_init(shell: str) -> int:
-    executable = shlex.quote(binary())
-    python = shlex.quote(sys.executable)
-    script = shlex.quote(str(Path(__file__).with_name("codex-switch").resolve()))
-    print(f"# codex-switcher integration for {shell}; affects this shell only")
-    print("codex() {")
-    print(f'  CODEX_SWITCHER_CODEX={executable} {python} {script} run -- "$@"')
-    print("}")
+    from switcher_runtime import shell_function
+    print(shell_function("codex", binary(), shell))
     return 0
 
 
@@ -315,7 +340,7 @@ def parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--account", type=account_name, help="Use an account for this launch only")
     run_parser.add_argument("codex_args", nargs=argparse.REMAINDER)
     shell_parser = commands.add_parser("shell-init", help="Print an optional codex shell function")
-    shell_parser.add_argument("shell", choices=("zsh", "bash"))
+    shell_parser.add_argument("shell", choices=("zsh", "bash", "powershell"))
     history_parser = commands.add_parser("history", help="Inspect or share local conversation history")
     history_commands = history_parser.add_subparsers(dest="history_action")
     share_parser = history_commands.add_parser("share", help="Merge existing history; close all Codex sessions first")
@@ -358,3 +383,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nCancelled.", file=sys.stderr)
         return 130
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

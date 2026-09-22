@@ -134,12 +134,13 @@ class UnifiedClaudeTest(unittest.TestCase):
         self.assertEqual(listing["conversations"][0]["title"], "Review authentication")
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "Antigravity adapter supports Linux only")
 class UnifiedAgyTest(unittest.TestCase):
     tearDown = test_agy_switcher.AgySwitcherTest.tearDown
 
     def setUp(self):
         test_agy_switcher.AgySwitcherTest.setUp(self)
-        for name in ("switcher", "switcher_cli.py", "switcher_manager.py", "claude_switcher.py"):
+        for name in ("switcher", "switcher_cli.py", "switcher_manager.py", "claude_switcher.py", "switcher_setup.py"):
             shutil.copy2(PROJECT / name, self.app / name)
 
     def test_repo_local_fallback_and_explicit_override(self):

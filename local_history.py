@@ -250,6 +250,8 @@ def launch_history(store: Store, root: Path, layout: Layout) -> None:
 
 def share(store: Store, source: str | None, layout: Layout) -> int:
     store.initialize()
+    from switcher_runtime import check_history_links
+    check_history_links(store.root)
     homes = account_homes(store, layout)
     if shared_home(store) is not None:
         for path in sorted(store.accounts.glob("*")):

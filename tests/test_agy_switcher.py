@@ -16,6 +16,7 @@ from agy_switcher import APP_DIRECTORY, AUTH_OVERRIDES, SUPPORTED_SHA256, TOKEN_
 
 PROJECT = Path(__file__).resolve().parents[1]
 FAKE_AGY = r'''#!/usr/bin/env python3
+from contextlib import closing
 import json, os, pathlib, sqlite3, sys
 argv = sys.argv[1:]
 assert argv[1] == "--app_data_dir=antigravity-cli"
@@ -46,7 +47,7 @@ if args == ["-p", "refresh-fixture"]:
     auth.write_text(json.dumps(value))
 app = home / "antigravity-cli"
 if args == ["history-fixture-list"]:
-    with sqlite3.connect(app / "conversation_summaries.db") as db:
+    with closing(sqlite3.connect(app / "conversation_summaries.db")) as db, db:
         print(json.dumps([row[0] for row in db.execute("SELECT conversation_id FROM conversation_summaries ORDER BY conversation_id")]))
     raise SystemExit(0)
 if args[:1] == ["history-fixture-update-cache"]:
@@ -63,6 +64,7 @@ raise SystemExit(int(os.environ.get("FAKE_EXIT", "0")))
 '''
 
 
+@unittest.skipUnless(sys.platform.startswith("linux"), "Antigravity adapter supports verified Linux builds only")
 class AgySwitcherTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -84,7 +86,7 @@ class AgySwitcherTest(unittest.TestCase):
         # shipped compatibility check has no environment-variable bypass.
         self.app = self.base / "app"
         self.app.mkdir()
-        for name in ("agy-switch", "codex_switcher.py", "codex_history.py", "local_history.py"):
+        for name in ("agy-switch", "codex_switcher.py", "codex_history.py", "local_history.py", "switcher_runtime.py"):
             shutil.copy2(PROJECT / name, self.app / name)
         fixture_hash = hashlib.sha256(self.fake.read_bytes()).hexdigest()
         module = (PROJECT / "agy_switcher.py").read_text()
