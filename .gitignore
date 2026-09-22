@@ -44,3 +44,5 @@ dist/
 artifacts/
 *.AppImage
 *.exe
+*.egg-info/
+*.whl

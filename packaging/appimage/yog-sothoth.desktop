@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Yog-Sothoth
+Comment=Manage coding-tool accounts and conversations
+Exec=AppRun
+Icon=yog-sothoth
+Terminal=false
+Categories=Development;
