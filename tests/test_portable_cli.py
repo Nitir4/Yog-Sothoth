@@ -58,7 +58,8 @@ def executable_fixture(path: Path) -> Path:
         path = path.with_suffix(".exe")
         path.write_bytes(launcher + ('#!"' + sys.executable + '"\n').encode() + archive.getvalue())
     else:
-        path.write_text("#!" + sys.executable + "\n" + FAKE)
+        # Unix shebangs cannot quote an interpreter path containing spaces.
+        path.write_text("#!/usr/bin/env python3\n" + FAKE)
         path.chmod(0o700)
     return path
 
