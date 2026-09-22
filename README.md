@@ -17,22 +17,69 @@ installations and handle their own sign-in and subscriptions.
 
 | Platform | CLI | Desktop interface |
 | --- | --- | --- |
-| Linux | Primary development and test platform | GTK 4.10+ |
-| macOS | Codex and Claude adapters are designed for macOS; native validation is pending | Not supported |
-| Windows | Native compatibility and PowerShell integration are pending | Not supported |
+| Linux | Codex, Claude Code, and verified Antigravity builds | GTK 4.6+ or bundled AppImage |
+| macOS | Codex and Claude Code; native CI checks on Python 3.10/3.12 | Not supported |
+| Windows | Codex and Claude Code; native executables and PowerShell CI checks | Not supported |
 
 The Antigravity adapter supports only inspected Linux executable builds. Check
 compatibility with `./agy-switch doctor` before adding an account.
 
-There are currently **no AppImage, Windows executable, or macOS application
-bundles**. Run the source checkout using the instructions below. Cross-platform
-CLI support and Linux AppImage packaging are planned work, not released features.
+The Linux **x86_64 AppImage** bundles Python, PyGObject, and GTK. It targets
+glibc 2.35+ (Ubuntu 22.04 or newer, and current Arch Linux). Other Linux
+architectures, a Windows GUI executable, and a macOS GUI bundle are not
+provided. The CLI installs as a Python package on all three platforms.
+
+Antigravity remains Linux-only: its internal profile flags must be verified
+against each executable build. Installing the package on Windows or macOS does
+not enable unverified Antigravity account switching.
 
 Native Codex behavior was checked against CLI **0.160.0**. Claude workflows are
 tested with a synthetic executable; real Claude sign-in and resume still need
 validation. See [Verification](#verification) for the test scope.
 
 ## Get started
+
+### Install the CLI on Linux, macOS, or Windows
+
+Install Python 3.10+ and the native coding CLIs you use. In a terminal (PowerShell
+on Windows), install from this repository:
+
+```sh
+python -m pip install "git+https://github.com/Nitir4/Yog-Sothoth.git"
+yog-sothoth --version
+yog-sothoth doctor
+```
+
+Use `python3` if your system uses that name, or `py` on Windows. This command needs Git. Alternatively,
+download the `.whl` from [releases](https://github.com/Nitir4/Yog-Sothoth/releases)
+and install it with `python -m pip install ./yog_sothoth_switcher-0.2.0-py3-none-any.whl`.
+On Linux with an externally managed Python environment, use `pipx install
+"git+https://github.com/Nitir4/Yog-Sothoth.git"` or a virtual environment instead.
+
+The installed commands are `yog-sothoth`, `switcher`, `codex-switch`,
+`claude-switch`, and `agy-switch`. If commands are not found, activate your
+virtual environment or add Python's scripts directory to `PATH`. They work
+outside the checkout:
+
+```sh
+yog-sothoth codex add personal
+yog-sothoth codex add work
+yog-sothoth codex use work
+yog-sothoth codex run
+```
+
+`doctor` lists tool availability, saved accounts, and installation links. Each
+CLI remains a separate installation; Yog-Sothoth does not install coding tools,
+share credentials between people, or include preconfigured accounts.
+
+On Windows, use native `.exe` installations. Codex's usual npm installation is
+also detected through its packaged native executable. For a custom npm prefix
+or unsupported installation layout, set `CODEX_SWITCHER_CODEX` to the native
+`codex.exe`. Set `CLAUDE_SWITCHER_CLAUDE` to the native `claude.exe` if it is not
+found in `PATH` or `%USERPROFILE%\.local\bin`. Shell shims (`.cmd`, `.bat`,
+`.ps1`) are refused so prompts and arguments are passed literally.
+
+### Run a source checkout
 
 Clone the repository and enter it:
 
@@ -69,6 +116,8 @@ python3 codex-switch --help
 
 | Command | Purpose |
 | --- | --- |
+| `./switcher doctor` | Check CLI availability and show setup guidance |
+| `./switcher --version` | Print the application version |
 | `./switcher status` | Show stores, saved accounts, and local login-cache status |
 | `./switcher TOOL add NAME` | Save an account through native sign-in |
 | `./switcher TOOL login NAME` | Complete or renew a saved account's login |
@@ -77,7 +126,7 @@ python3 codex-switch --help
 | `./switcher TOOL current` | Print the saved default |
 | `./switcher TOOL run -- [ARGS...]` | Launch the tool with its default account |
 | `./switcher TOOL run --account NAME -- [ARGS...]` | Use an account once without changing the default |
-| `./switcher TOOL shell-init zsh` | Print shell integration; `bash` is also supported |
+| `./switcher TOOL shell-init zsh` | Print shell integration; Codex/Claude also support `bash` and `powershell` |
 | `./switcher TOOL history` | Inspect per-account or shared history storage |
 | `./switcher TOOL history share --source-home PATH` | Import and share that tool's local history |
 | `./switcher history` | Browse conversations across tools |
@@ -100,13 +149,49 @@ between accounts.
 
 ## Linux desktop interface
 
-Install PyGObject and **GTK 4.10+**, using your distribution's system Python:
+### AppImage
+
+Download `Yog-Sothoth-0.2.0-x86_64.AppImage` and its checksum from
+[releases](https://github.com/Nitir4/Yog-Sothoth/releases). In the download folder:
+
+```sh
+sha256sum -c Yog-Sothoth-0.2.0-x86_64.AppImage.sha256
+chmod +x Yog-Sothoth-0.2.0-x86_64.AppImage
+./Yog-Sothoth-0.2.0-x86_64.AppImage
+```
+
+Double-clicking the executable opens the GUI. Python and GTK do not need to be
+installed separately. A graphical session and a supported terminal emulator
+are still required; the coding CLIs must be installed on the host.
+
+If FUSE mounting is unavailable, run:
+
+```sh
+./Yog-Sothoth-0.2.0-x86_64.AppImage --appimage-extract-and-run
+```
+
+The same file exposes the CLI when given arguments:
+
+```sh
+./Yog-Sothoth-0.2.0-x86_64.AppImage doctor
+./Yog-Sothoth-0.2.0-x86_64.AppImage codex run
+```
+
+The first startup opens tool setup if no accounts are saved. Use **Setup tools…**
+to see installation guides and add accounts later. Your stores live in your
+home directory, outside the AppImage. Replacing or moving the AppImage does not
+remove saved accounts. Terminals launched by the GUI keep their own AppImage
+runtime so closing the manager does not invalidate their launch command.
+
+### GUI from source or an installed package
+
+Install PyGObject and **GTK 4.6+**, using your distribution's system Python:
 
 ```sh
 # Arch Linux
 sudo pacman -S python-gobject gtk4
 
-# Ubuntu 24.04+ or Debian with GTK 4.10+
+# Ubuntu 24.04+ or Debian with GTK 4.6+
 sudo apt install python3-gi gir1.2-gtk-4.0
 
 # Fedora
@@ -193,7 +278,7 @@ eval "$(./claude-switch shell-init zsh)"
 eval "$(./agy-switch shell-init zsh)"
 ```
 
-Use `bash` instead of `zsh` for Bash. Antigravity integration requires a
+On Linux/macOS, use `bash` instead of `zsh` for Bash. Antigravity integration requires a
 compatible executable. Afterwards:
 
 ```sh
@@ -209,7 +294,19 @@ absolute checkout paths. The wrappers do not edit shell configuration.
 Use `unfunction codex` in zsh or `unset -f codex` in Bash to remove a function;
 the same applies to `claude` and `agy`. Without these functions, bare native
 commands use their own original login rather than the wrapper's saved default.
-PowerShell integration is not implemented.
+With an installed package, use `codex-switch` and `claude-switch` directly
+instead of checkout paths. In PowerShell:
+
+```powershell
+codex-switch shell-init powershell | Out-String | Invoke-Expression
+claude-switch shell-init powershell | Out-String | Invoke-Expression
+codex "Review this project"
+```
+
+Put those initialization lines in `$PROFILE` if you want them in future sessions.
+They preserve the previous executable-override environment variable after each
+invocation. Remove a function with `Remove-Item Function:codex` or
+`Remove-Item Function:claude`.
 
 ## Conversation browsing and shared history
 
@@ -397,6 +494,13 @@ Default stores:
 | Claude Code | `~/.local/share/claude-switcher/` | `accounts/NAME/` |
 | Antigravity | `~/.local/share/agy-switcher/` | `accounts/NAME/antigravity-cli/` |
 
+On Windows, `~` means `%USERPROFILE%`. Store and account directories receive
+protected ACLs allowing the current user, SYSTEM, and administrators; inherited
+access from other users is removed. Credentials remain unencrypted local files.
+Shared history on Windows additionally needs symbolic-link permission (normally
+Developer Mode). The migration checks this before moving history, and gives a
+setup message if unavailable. Per-account switching does not require symlinks.
+
 Each store contains `selected.json`, account directories, and an optional shared
 `history/` directory. Storage names and wrapper commands remain unchanged by
 the Yog-Sothoth project name.
@@ -451,8 +555,44 @@ not use real account tokens or make inference requests. Coverage includes:
 - Dropdown switching for every tool, default persistence, failed validation,
   and protection against accidental switches during startup or refresh.
 
-GTK checks require PyGObject and GTK 4.10+. The real-window test runs only when
-an accessible desktop display is available. Native Windows/macOS runs, live
-Claude sign-in, and live switching between Antigravity accounts have not been
-verified. Native Antigravity data paths, selected executable fingerprints,
-MCP-profile isolation, and history migration were inspected on Linux.
+The [CI workflow](https://github.com/Nitir4/Yog-Sothoth/actions/workflows/ci.yml)
+runs native CLI checks on Linux, macOS, and Windows with Python 3.10 and 3.12.
+Windows checks use real native process launchers and PowerShell, verify private
+credential-directory ACLs, and check shared-history migration or its preflight
+permission error. Every platform builds a wheel, installs it into a fresh virtual
+environment whose path contains spaces, and runs account switching from outside
+the checkout.
+
+GTK checks require PyGObject and GTK 4.6+. The AppImage build runs real-window
+checks with a virtual display and tests fresh first-run setup. On a local system
+without a display, the real-window test is skipped. Synthetic checks validate
+wrapper behavior; live Claude sign-in and switching between Antigravity accounts
+still require validation with the providers' real CLIs. Native Antigravity data
+paths, selected executable fingerprints, MCP-profile isolation, and history
+migration were inspected on Linux.
+
+## Build distributable packages
+
+Build the portable CLI wheel:
+
+```sh
+python -m pip install build
+python -m build --wheel
+python scripts/verify_install.py dist/*.whl
+```
+
+Build and verify the Linux x86_64 AppImage with Docker:
+
+```sh
+sh scripts/build_appimage.sh
+```
+
+Artifacts go to `artifacts/` (ignored by Git). The build stages an explicit list
+of application sources and synthetic tests; local account stores and checkout
+metadata are excluded. The Ubuntu 22.04 base and AppImage runtime checksum are
+pinned. The bundle includes dependency copyright notices and a build-package
+manifest. The runtime checksum must be reviewed when updating its upstream pin.
+
+The CI AppImage job also uploads the tested AppImage, checksum, and wheel as
+workflow artifacts. Neither the wheel nor AppImage contains account credentials,
+conversation history, or user settings.
