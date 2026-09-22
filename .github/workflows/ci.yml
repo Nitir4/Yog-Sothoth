@@ -1,0 +1,57 @@
+name: CLI and Linux desktop
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cli:
+    name: CLI on ${{ matrix.os }} / Python ${{ matrix.python }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ['3.10', '3.12']
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Source CLI tests (Linux and macOS)
+        if: runner.os != 'Windows'
+        run: python -m unittest discover -s tests -q
+      - name: Native process and PowerShell tests (Windows)
+        if: runner.os == 'Windows'
+        run: python -m unittest discover -s tests -p test_portable_cli.py -v
+      - name: Build wheel
+        run: |
+          python -m pip install build
+          python -m build --wheel
+      - name: Verify installed CLI
+        shell: bash
+        run: python scripts/verify_install.py dist/*.whl
+
+  appimage:
+    name: Linux AppImage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build isolated Linux package
+        run: sh scripts/build_appimage.sh
+      - name: Smoke test bundled GUI
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb xauth dbus-x11
+          python3 scripts/verify_appimage.py artifacts/*.AppImage
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Yog-Sothoth-Linux-x86_64
+          path: artifacts/*
+          if-no-files-found: error
