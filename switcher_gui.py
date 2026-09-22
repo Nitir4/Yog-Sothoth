@@ -20,6 +20,8 @@ from switcher_manager import (
     PROJECT, TOOLS, Conversation, conversations, launch_arguments,
     manager_environment, open_terminal, states,
 )
+from switcher_runtime import cli_command
+from switcher_setup import INSTALL_GUIDES, setup_hint
 
 CSS = b"""
 .shell { background: #f4f6f2; color: #20332b; }
@@ -105,6 +107,7 @@ class ManagerWindow(Gtk.ApplicationWindow):
         self.record = None
         self.busy = False
         self.closed = False
+        self.setup_shown = False
         self.loader = loader or self.load_data
         self.connect("close-request", self.on_close)
         self.build()
@@ -153,6 +156,7 @@ class ManagerWindow(Gtk.ApplicationWindow):
         titles.append(label("Accounts & history", "title"))
         titles.append(label("Pick an account. Continue where you left off.", "subtitle"))
         heading.append(titles)
+        heading.append(button("Setup tools…", self.show_setup))
         self.refresh_button = button("Refresh", self.refresh)
         heading.append(self.refresh_button)
         page.append(heading)
@@ -219,7 +223,10 @@ class ManagerWindow(Gtk.ApplicationWindow):
         history_heading.append(self.filter_tool)
         page.append(history_heading)
         filters = box(spacing=8)
-        self.search = Gtk.SearchEntry(placeholder_text="Search titles or conversation IDs")
+        self.search = Gtk.SearchEntry()
+        self.search.set_tooltip_text("Search titles or conversation IDs")
+        if self.search.find_property("placeholder-text"):
+            self.search.set_property("placeholder-text", "Search titles or conversation IDs")
         self.search.set_hexpand(True)
         self.search.connect("search-changed", lambda *_: self.render_history())
         filters.append(self.search)
@@ -315,6 +322,33 @@ class ManagerWindow(Gtk.ApplicationWindow):
         self.select_tool(self.tool, keep_filter=True)
         self.render_history()
         self.message(errors[0] if errors else "Ready · Login caches are checked locally; each CLI validates sign-in when launched.", error=bool(errors))
+        if not self.setup_shown and self.snapshot and not any(s.accounts for s in self.snapshot):
+            self.show_setup()
+
+    def show_setup(self):
+        self.setup_shown = True
+        dialog, body = self.form("Set up your coding tools")
+        body.append(label("Install the coding CLIs you use, then add your accounts. Yog-Sothoth uses their normal sign-in flows.",
+                          "muted", wrap=True))
+        for state in self.snapshot:
+            card = box(vertical=True, spacing=8, css="card")
+            card.append(label(state.label, "section-title"))
+            card.append(label(setup_hint(state), "muted", wrap=True))
+            actions = box(spacing=8)
+            actions.append(Gtk.LinkButton.new_with_label(INSTALL_GUIDES[state.tool], "Installation guide ↗"))
+
+            def add(tool=state.tool):
+                dialog.close()
+                self.select_tool(tool)
+                self.add_account()
+
+            action = button("Add account", add)
+            action.set_sensitive(state.available and not self.busy)
+            actions.append(action)
+            card.append(actions)
+            body.append(card)
+        body.append(button("Close and refresh", lambda: (dialog.close(), self.refresh()), "primary"))
+        dialog.present()
 
     def state(self):
         return next((s for s in self.snapshot if s.tool == self.tool), None)
@@ -455,6 +489,23 @@ class ManagerWindow(Gtk.ApplicationWindow):
         self.update_actions()
 
     def choose_folder(self, entry):
+        if not hasattr(Gtk, "FileDialog"):
+            dialog = Gtk.FileChooserNative.new("Choose a directory", self, Gtk.FileChooserAction.SELECT_FOLDER,
+                                               "Choose", "Cancel")
+            path = Path(entry.get_text()).expanduser()
+            if path.is_dir():
+                dialog.set_current_folder(Gio.File.new_for_path(str(path)))
+
+            def responded(chooser, response):
+                if response == Gtk.ResponseType.ACCEPT:
+                    file = chooser.get_file()
+                    if file and file.get_path():
+                        entry.set_text(file.get_path())
+                chooser.destroy()
+
+            dialog.connect("response", responded)
+            dialog.show()
+            return
         dialog = Gtk.FileDialog(title="Choose a directory")
         path = Path(entry.get_text()).expanduser()
         if path.is_dir():
@@ -509,7 +560,7 @@ class ManagerWindow(Gtk.ApplicationWindow):
 
         def select():
             try:
-                result = subprocess.run([sys.executable, str(PROJECT / "switcher"), tool, "use", name],
+                result = subprocess.run(cli_command([tool, "use", name]),
                                         env=manager_environment(), capture_output=True, text=True, timeout=20)
             except subprocess.TimeoutExpired:
                 raise SwitcherError("Login check timed out. Retry or sign in from the terminal.") from None
@@ -582,8 +633,8 @@ class ManagerWindow(Gtk.ApplicationWindow):
 
 
 def run() -> int:
-    if (Gtk.get_major_version(), Gtk.get_minor_version()) < (4, 10):
-        raise SwitcherError("The desktop manager requires GTK 4.10 or newer.")
+    if (Gtk.get_major_version(), Gtk.get_minor_version()) < (4, 6):
+        raise SwitcherError("The desktop manager requires GTK 4.6 or newer.")
     if not Gtk.init_check() or Gdk.Display.get_default() is None:
         raise SwitcherError("No graphical display is available. Use 'switcher status' and 'switcher history' from this terminal.")
     app = Gtk.Application(application_id="io.github.cli_switcher.Manager", flags=Gio.ApplicationFlags.NON_UNIQUE)

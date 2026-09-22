@@ -16,7 +16,7 @@ try:
     from gi.repository import GObject
 except (ImportError, ValueError):
     gui = None
-GUI_AVAILABLE = bool(gui and (gui.Gtk.get_major_version(), gui.Gtk.get_minor_version()) >= (4, 10))
+GUI_AVAILABLE = bool(gui and (gui.Gtk.get_major_version(), gui.Gtk.get_minor_version()) >= (4, 6))
 
 
 @unittest.skipUnless(GUI_AVAILABLE, "Optional GTK 4.10+ dependency is not installed")
@@ -98,7 +98,7 @@ class AccountSelectionTest(unittest.TestCase):
                         returncode=0, stderr="")) as switched:
                     data = job()
                 self.assertEqual(switched.call_args.args[0],
-                                 [sys.executable, str(PROJECT / "switcher"), tool, "use", "work"])
+                                 gui.cli_command([tool, "use", "work"]))
                 self.assertIn(tool.upper() + "_SWITCHER_HOME", switched.call_args.kwargs["env"])
                 self.state.selected = "work"
                 done(data)
@@ -182,8 +182,8 @@ class HeadlessGuiTest(unittest.TestCase):
         else:
             css.load_from_data(gui.CSS)
         self.assertEqual(errors, [])
-        for cls, properties in [(gui.Gtk.SearchEntry, ["placeholder-text"]),
-                                (gui.Gtk.FileDialog, ["title"]),
+        chooser = gui.Gtk.FileDialog if hasattr(gui.Gtk, "FileDialog") else gui.Gtk.FileChooserNative
+        for cls, properties in [(chooser, ["title"]),
                                 (gui.Gtk.ApplicationWindow, ["title", "default-width"]),
                                 (gui.Gtk.ScrolledWindow, ["hscrollbar-policy"])]:
             self.assertTrue(set(properties) <= {p.name for p in GObject.list_properties(cls)})
