@@ -82,7 +82,7 @@ class HistoryTest(unittest.TestCase):
         self.assertTrue((homes[2] / "history.jsonl").read_text().endswith(entry))
         self.invoke("add", "new")
         self.invoke("run", "--account", "new", "--", "--version")
-        self.assertEqual((self.store / "accounts" / "new" / "sessions").resolve(), shared / "sessions")
+        self.assertEqual((self.store / "accounts" / "new" / "sessions").resolve(), (shared / "sessions").resolve())
         self.invoke("run", "--account", "work", "--", "logout")
         self.assertEqual((shared / "history.jsonl").read_bytes(), before + entry.encode())
 

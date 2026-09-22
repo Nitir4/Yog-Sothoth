@@ -4,7 +4,6 @@ import io
 import json
 import os
 from pathlib import Path
-import struct
 import subprocess
 import sys
 import tempfile
@@ -51,7 +50,7 @@ def executable_fixture(path: Path) -> Path:
         # Windows CreateProcess rather than adding a production test bypass.
         from pip._vendor.distlib.scripts import ScriptMaker
         maker = ScriptMaker(None, None)
-        launcher = maker._get_launcher("t64" if struct.calcsize("P") == 8 else "t32")
+        launcher = maker._get_launcher("t")
         archive = io.BytesIO()
         with zipfile.ZipFile(archive, "w") as zipped:
             zipped.writestr("__main__.py", FAKE)
@@ -128,8 +127,8 @@ class PortableCliTest(unittest.TestCase):
 
     def test_appimage_launches_use_a_separate_runtime(self):
         with patch.dict(os.environ, {"APPIMAGE": "/tmp/Yog-Sothoth.AppImage", "APPDIR": "/tmp/mount"}):
-            self.assertEqual(cli_command(["_terminal"]), ["/tmp/Yog-Sothoth.AppImage", "_terminal"])
-            self.assertEqual(cli_command(["run"], "codex"), ["/tmp/Yog-Sothoth.AppImage", "codex", "run"])
+            self.assertEqual(cli_command(["_terminal"]), ["/tmp/Yog-Sothoth.AppImage", "--appimage-extract-and-run", "_terminal"])
+            self.assertEqual(cli_command(["run"], "codex"), ["/tmp/Yog-Sothoth.AppImage", "--appimage-extract-and-run", "codex", "run"])
 
     def test_powershell_paths_are_quoted_and_environment_is_restored(self):
         with patch.dict(os.environ, {}, clear=True):

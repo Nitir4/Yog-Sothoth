@@ -45,9 +45,9 @@ def store_for(tool: str) -> Store:
     return store
 
 
-def manager_environment() -> dict[str, str]:
+def manager_environment(*, external: bool = False) -> dict[str, str]:
     from switcher_runtime import external_environment
-    env = external_environment()
+    env = external_environment() if external else os.environ.copy()
     for tool in TOOLS:
         env[f"{tool.upper()}_SWITCHER_HOME"] = str(store_for(tool).root)
     return env
@@ -381,7 +381,7 @@ def terminal_command(arguments: list[str], cwd: Path, *, lookup=shutil.which) ->
 
 
 def open_terminal(arguments: list[str], cwd: Path) -> subprocess.Popen:
-    return subprocess.Popen(terminal_command(arguments, cwd), env=manager_environment(), start_new_session=True)
+    return subprocess.Popen(terminal_command(arguments, cwd), env=manager_environment(external=True), start_new_session=True)
 
 
 def as_data(value):

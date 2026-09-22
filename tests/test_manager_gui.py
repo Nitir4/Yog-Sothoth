@@ -98,7 +98,7 @@ class AccountSelectionTest(unittest.TestCase):
                         returncode=0, stderr="")) as switched:
                     data = job()
                 self.assertEqual(switched.call_args.args[0],
-                                 gui.cli_command([tool, "use", "work"]))
+                                 gui.cli_command([tool, "use", "work"], standalone=False))
                 self.assertIn(tool.upper() + "_SWITCHER_HOME", switched.call_args.kwargs["env"])
                 self.state.selected = "work"
                 done(data)

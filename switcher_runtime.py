@@ -11,7 +11,8 @@ import sys
 VERSION = "0.2.0"
 
 BUNDLE_VARIABLES = ("LD_LIBRARY_PATH", "PYTHONHOME", "PYTHONPATH", "GI_TYPELIB_PATH",
-                    "GIO_EXTRA_MODULES", "GSETTINGS_SCHEMA_DIR", "XDG_DATA_DIRS", "GSK_RENDERER")
+                    "GIO_EXTRA_MODULES", "GSETTINGS_SCHEMA_DIR", "XDG_DATA_DIRS", "GSK_RENDERER",
+                    "PYTHONDONTWRITEBYTECODE")
 
 
 def external_environment() -> dict[str, str]:
@@ -47,11 +48,11 @@ def check_history_links(root: Path) -> None:
                             "Enable it before migrating; per-account switching works without it.") from None
 
 
-def cli_command(arguments: list[str], tool: str | None = None) -> list[str]:
+def cli_command(arguments: list[str], tool: str | None = None, *, standalone: bool = True) -> list[str]:
     # A terminal needs its own AppImage mount after the GUI has been closed.
     appimage = os.environ.get("APPIMAGE")
-    if appimage and os.environ.get("APPDIR"):
-        return [appimage, *([tool] if tool else []), *arguments]
+    if standalone and appimage and os.environ.get("APPDIR"):
+        return [appimage, "--appimage-extract-and-run", *([tool] if tool else []), *arguments]
     module = f"{tool}_switcher.py" if tool else "switcher_cli.py"
     return [sys.executable, str(Path(__file__).with_name(module)), *arguments]
 

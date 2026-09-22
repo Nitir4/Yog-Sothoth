@@ -87,7 +87,7 @@ def merge_claude_index(source: Path, destination: Path, home: Path, final: Path)
             path = value.get("fullPath")
             if isinstance(path, str):
                 try:
-                    value["fullPath"] = str(final / Path(path).relative_to(home))
+                    value["fullPath"] = str(final / Path(path).resolve().relative_to(home.resolve()))
                 except ValueError:
                     pass
             previous = entries.get(value["sessionId"])

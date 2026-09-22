@@ -560,7 +560,7 @@ class ManagerWindow(Gtk.ApplicationWindow):
 
         def select():
             try:
-                result = subprocess.run(cli_command([tool, "use", name]),
+                result = subprocess.run(cli_command([tool, "use", name], standalone=False),
                                         env=manager_environment(), capture_output=True, text=True, timeout=20)
             except subprocess.TimeoutExpired:
                 raise SwitcherError("Login check timed out. Retry or sign in from the terminal.") from None

@@ -158,7 +158,7 @@ def merge_database(source: Path, destination: Path, source_home_path: Path, fina
 
 def remap_path(value: str, source: Path, final: Path) -> str:
     try:
-        relative = Path(value).relative_to(source)
+        relative = Path(value).resolve().relative_to(source.resolve())
     except ValueError:
         return value
     if relative.parts and relative.parts[0] in ("sessions", "archived_sessions"):
