@@ -86,6 +86,17 @@ class HistoryTest(unittest.TestCase):
         self.invoke("run", "--account", "work", "--", "logout")
         self.assertEqual((shared / "history.jsonl").read_bytes(), before + entry.encode())
 
+    def test_rollout_paths_under_an_aliased_home_are_remapped(self):
+        from codex_history import remap_path
+        alias = self.base / "aliased-home"
+        original = self.source.parent
+        alias.symlink_to(original, target_is_directory=True)
+        final = self.store / "history"
+        value = alias / "sessions" / "saved.jsonl"
+        self.assertEqual(remap_path(str(value), original, final), str(final / "sessions/saved.jsonl"))
+        outside = self.base / "different-home/sessions/saved.jsonl"
+        self.assertEqual(remap_path(str(outside), original, final), str(outside))
+
     def test_conflicting_transcripts_fail_without_moving_history(self):
         self.invoke("add", "personal", "--import-current")
         home = self.store / "accounts" / "personal"

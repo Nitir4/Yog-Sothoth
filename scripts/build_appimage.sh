@@ -27,6 +27,10 @@ docker_cmd() {
 docker_cmd build -t yog-sothoth-appimage-builder -f "$stage/packaging/appimage/Dockerfile" "$stage"
 container=$(docker_cmd create yog-sothoth-appimage-builder)
 trap 'docker_cmd rm "$container" >/dev/null; rm -rf "$stage"' EXIT HUP INT TERM
-docker_cmd cp "$container:/output/." - | tar -x --no-same-owner --unlink-first -C "$output_dir"
-find "$output_dir" -maxdepth 1 -name '*.AppImage' -exec chmod 755 {} +
+mkdir "$stage/output"
+docker_cmd cp "$container:/output/." - | tar -x --no-same-owner -C "$stage/output"
+for file in "$stage/output"/*; do
+    cp --remove-destination "$file" "$output_dir/"
+    case "$file" in *.AppImage) chmod 755 "$output_dir/${file##*/}" ;; esac
+done
 printf 'Artifacts written to %s\n' "$output_dir"
