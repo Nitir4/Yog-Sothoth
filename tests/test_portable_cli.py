@@ -111,7 +111,8 @@ class PortableCliTest(unittest.TestCase):
         import shutil
         for tool in ("codex", "claude"):
             self.invoke(tool, "add", "personal")
-            for shell in ("bash", "zsh", "powershell"):
+            shells = ("powershell",) if os.name == "nt" else ("bash", "zsh")
+            for shell in shells:
                 native = "pwsh" if shell == "powershell" else shell
                 if not shutil.which(native):
                     continue
@@ -159,6 +160,37 @@ $acl = Get-Acl $env:FIXTURE_ACL_PATH
         acl = json.loads(result.stdout)
         self.assertTrue(acl["protected"])
         self.assertEqual(set(acl["principals"]), {acl["user"], "S-1-5-18", "S-1-5-32-544"})
+
+    @unittest.skipUnless(os.name == "nt", "Windows executable discovery")
+    def test_windows_npm_binary_discovery_and_shell_shim_rejection(self):
+        import platform
+        import shutil
+        from codex_switcher import find_executable, SwitcherError
+        npm = self.base / "appdata/npm"
+        arch = "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "x64"
+        triple = "aarch64" if arch == "arm64" else "x86_64"
+        executable = npm / "node_modules/@openai" / ("codex-win32-" + arch) / "vendor" / (triple + "-pc-windows-msvc") / "bin/codex.exe"
+        executable.parent.mkdir(parents=True)
+        shutil.copyfile(self.fake, executable)
+        shim = npm / "codex.cmd"
+        shim.write_text("@exit /b 99\n")
+        env = dict(self.env, APPDATA=str(self.base / "appdata"), PATH=str(npm))
+        env.pop("CODEX_SWITCHER_CODEX")
+        with patch.dict(os.environ, env, clear=True):
+            self.assertEqual(Path(find_executable("codex", "codex")), executable)
+            os.environ["CODEX_SWITCHER_CODEX"] = str(shim)
+            with self.assertRaisesRegex(SwitcherError, "native .exe"):
+                find_executable("codex", "codex")
+
+    @unittest.skipUnless(os.name == "nt", "Windows junctions")
+    def test_windows_junction_account_directory_is_refused(self):
+        from codex_switcher import private_directory, SwitcherError
+        target, junction = self.base / "target", self.base / "junction"
+        target.mkdir()
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(junction), str(target)],
+                       check=True, capture_output=True)
+        with self.assertRaisesRegex(SwitcherError, "symlink"):
+            private_directory(junction)
 
     @unittest.skipUnless(os.name == "nt", "Windows symbolic-link permissions")
     def test_windows_shared_history_or_clear_preflight_error(self):

@@ -29,7 +29,11 @@ def account_name(value: str) -> str:
 
 
 def private_directory(path: Path) -> None:
-    if path.is_symlink() or getattr(path, "is_junction", lambda: False)():
+    try:
+        reparse = bool(path.lstat().st_file_attributes & 0x400)
+    except (FileNotFoundError, AttributeError):
+        reparse = False
+    if path.is_symlink() or reparse:
         raise SwitcherError(f"Refusing a symlink directory: {path}")
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
     info = path.stat()
