@@ -12,6 +12,7 @@ import shutil
 import sqlite3
 import stat
 import subprocess
+from switcher_runtime import native_call, native_run
 import sys
 import tempfile
 
@@ -127,6 +128,10 @@ def find_executable(tool: str, command_name: str) -> str | None:
     # An explicit executable override must still fail if it cannot be found.
     if not found and override not in os.environ:
         found = shutil.which(str(Path.home() / ".local" / "bin" / command_name))
+    if not found and override not in os.environ and sys.platform == "darwin":
+        for directory in ("/opt/homebrew/bin", "/usr/local/bin"):
+            if found := shutil.which(str(Path(directory) / command_name)):
+                break
     if os.name == "nt":
         shim = found
         if found and Path(found).suffix.lower() in (".cmd", ".bat", ".ps1"):
@@ -136,6 +141,9 @@ def find_executable(tool: str, command_name: str) -> str | None:
         if not found and override not in os.environ:
             found = shutil.which(command_name + ".exe") or shutil.which(
                 str(Path.home() / ".local" / "bin" / (command_name + ".exe")))
+        if not found and override not in os.environ and tool == "agy":
+            directory = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData/Local"))) / "agy/bin"
+            found = shutil.which(str(directory / "agy.exe"))
         if not found and override not in os.environ and tool == "codex":
             # npm installs expose a shell shim beside the packaged native binary.
             import platform
@@ -184,7 +192,7 @@ def command(executable: str, home: Path, args: list[str], *, sqlite_home: Path |
 
 
 def signed_in(executable: str, home: Path) -> bool:
-    result = subprocess.run(
+    result = native_run(
         command(executable, home, ["login", "status"]),
         env=environment(home), capture_output=True,
     )
@@ -218,7 +226,7 @@ def add(store: Store, args: argparse.Namespace) -> int:
         atomic_write(home / "auth.json", auth)
     else:
         print(f"Sign in to the account you want to save as '{args.name}'.", flush=True)
-        result = subprocess.call(
+        result = native_call(
             command(executable, home, ["login", *(["--device-auth"] if args.device_auth else [])]),
             env=environment(home),
         )
@@ -238,7 +246,7 @@ def add(store: Store, args: argparse.Namespace) -> int:
 def login(store: Store, args: argparse.Namespace) -> int:
     home = store.require(args.name)
     executable = binary()
-    result = subprocess.call(
+    result = native_call(
         command(executable, home, ["login", *(["--device-auth"] if args.device_auth else [])]),
         env=environment(home),
     )
@@ -308,13 +316,13 @@ def run(store: Store, args: argparse.Namespace) -> int:
     # Current Codex versions can reuse a shared daemon. Keep this launch local
     # so the selected home always determines authentication. Older versions
     # predate this flag and already ran locally.
-    help_result = subprocess.run([executable, "--help"], env=environment(home), capture_output=True)
+    help_result = native_run([executable, "--help"], env=environment(home), capture_output=True)
     flags = ["--no-daemon"] if b"--no-daemon" in help_result.stdout else []
     print(f"Codex account: {name}", file=sys.stderr, flush=True)
     argv = command(executable, home, [*flags, *forwarded], sqlite_home=launch_history(store, home))
     if os.name == "posix":
         os.execve(executable, argv, environment(home))
-    return subprocess.call(argv, env=environment(home))
+    return native_call(argv, env=environment(home))
 
 
 def shell_init(shell: str) -> int:

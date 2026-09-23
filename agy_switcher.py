@@ -10,6 +10,7 @@ from pathlib import Path
 import shlex
 import sqlite3
 import subprocess
+from switcher_runtime import native_call, native_run
 import sys
 
 from codex_switcher import Store, SwitcherError, account_name, atomic_write, find_executable, private_directory
@@ -159,7 +160,7 @@ def login(store: Store, name: str) -> int:
         f"Opening AGY for '{name}'. Complete its URL/code sign-in if prompted, "
         "then type /exit to return to the switcher.", flush=True,
     )
-    result = subprocess.call(command(executable, home, []), env=environment())
+    result = native_call(command(executable, home, []), env=environment())
     if result:
         print(f"AGY exited with an error. Retry with: agy-switch login {name}", file=sys.stderr)
         return result if result > 0 else 1

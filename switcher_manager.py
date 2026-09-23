@@ -20,7 +20,7 @@ import tempfile
 from urllib.parse import unquote, urlparse
 
 from codex_switcher import Store, SwitcherError, account_name, read_auth
-from switcher_runtime import cli_command
+from switcher_runtime import cli_command, external_libraries
 
 TOOLS = {"codex": "Codex", "claude": "Claude Code", "agy": "Antigravity"}
 PROJECT = Path(__file__).resolve().parent
@@ -372,6 +372,12 @@ def terminal_command(arguments: list[str], cwd: Path, *, lookup=shutil.which) ->
         if not prefix or not lookup(prefix[0]):
             raise SwitcherError("SWITCHER_TERMINAL executable was not found.")
         return [*prefix, *payload]
+    if sys.platform == "win32":
+        return payload
+    if sys.platform == "darwin":
+        # AppleScript receives the shell command as data, never interpolated code.
+        script = 'on run argv\ntell application "Terminal"\nactivate\ndo script (item 1 of argv)\nend tell\nend run'
+        return ["/usr/bin/osascript", "-e", script, shlex.join(payload)]
     for name, flags in [("kitty", ["--title", "Switcher", "--"]), ("gnome-terminal", ["--"]),
                         ("konsole", ["-e"]), ("xfce4-terminal", ["--disable-server", "-x"]),
                         ("wezterm", ["start", "--"]), ("xterm", ["-e"])]:
@@ -381,7 +387,9 @@ def terminal_command(arguments: list[str], cwd: Path, *, lookup=shutil.which) ->
 
 
 def open_terminal(arguments: list[str], cwd: Path) -> subprocess.Popen:
-    return subprocess.Popen(terminal_command(arguments, cwd), env=manager_environment(external=True), start_new_session=True)
+    options = {"creationflags": subprocess.CREATE_NEW_CONSOLE} if sys.platform == "win32" else {"start_new_session": True}
+    with external_libraries():
+        return subprocess.Popen(terminal_command(arguments, cwd), env=manager_environment(external=True), **options)
 
 
 def as_data(value):

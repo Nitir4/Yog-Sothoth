@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import ctypes
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import shlex
 import sys
+import threading
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 BUNDLE_VARIABLES = ("LD_LIBRARY_PATH", "PYTHONHOME", "PYTHONPATH", "GI_TYPELIB_PATH",
                     "GIO_EXTRA_MODULES", "GSETTINGS_SCHEMA_DIR", "XDG_DATA_DIRS", "GSK_RENDERER",
@@ -28,7 +30,58 @@ def external_environment() -> dict[str, str]:
                 env.pop(variable, None)
         env.pop("APPDIR", None)
         env.pop("APPIMAGE", None)
+    if getattr(sys, "frozen", False):
+        original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+        if original is None:
+            env.pop("LD_LIBRARY_PATH", None)
+        else:
+            env["LD_LIBRARY_PATH"] = original
+        bundle = str(getattr(sys, "_MEIPASS", ""))
+        if bundle:
+            env["PATH"] = os.pathsep.join(p for p in env.get("PATH", "").split(os.pathsep)
+                                         if not (p == bundle or p.startswith(bundle + os.sep)))
+            for key in ("QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
+                if env.get(key, "").startswith(bundle):
+                    env.pop(key, None)
+        env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     return env
+
+
+_library_lock = threading.RLock()
+
+
+@contextmanager
+def external_libraries():
+    """Do not make native tools inherit PyInstaller's Windows DLL directory."""
+    if os.name != "nt" or not getattr(sys, "frozen", False):
+        yield
+        return
+    with _library_lock:
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.GetDllDirectoryW.argtypes = [ctypes.c_ulong, ctypes.c_wchar_p]
+        kernel.SetDllDirectoryW.argtypes = [ctypes.c_wchar_p]
+        size = kernel.GetDllDirectoryW(0, None)
+        buffer = ctypes.create_unicode_buffer(size + 1)
+        kernel.GetDllDirectoryW(len(buffer), buffer)
+        if not kernel.SetDllDirectoryW(None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            yield
+        finally:
+            if not kernel.SetDllDirectoryW(buffer.value or None):
+                raise ctypes.WinError(ctypes.get_last_error())
+
+
+def native_run(*args, **kwargs):
+    import subprocess
+    with external_libraries():
+        return subprocess.run(*args, **kwargs)
+
+
+def native_call(*args, **kwargs):
+    import subprocess
+    with external_libraries():
+        return subprocess.call(*args, **kwargs)
 
 
 def check_history_links(root: Path) -> None:
@@ -49,6 +102,14 @@ def check_history_links(root: Path) -> None:
 
 
 def cli_command(arguments: list[str], tool: str | None = None, *, standalone: bool = True) -> list[str]:
+    if getattr(sys, "frozen", False):
+        executable = Path(sys.executable)
+        if executable.stem.lower() != "yog-sothoth":
+            executable = executable.with_name("yog-sothoth.exe" if os.name == "nt" else "yog-sothoth")
+        if not executable.is_file():
+            from codex_switcher import SwitcherError
+            raise SwitcherError("The bundled CLI is missing. Extract the complete desktop package again.")
+        return [str(executable), *([tool] if tool else []), *arguments]
     # A terminal needs its own AppImage mount after the GUI has been closed.
     appimage = os.environ.get("APPIMAGE")
     if standalone and appimage and os.environ.get("APPDIR"):

@@ -9,6 +9,7 @@ from pathlib import Path
 import shlex
 import sqlite3
 import subprocess
+from switcher_runtime import native_call, native_run
 import sys
 
 from codex_switcher import Store, SwitcherError, account_name, find_executable
@@ -45,7 +46,7 @@ def environment(home: Path) -> dict[str, str]:
 
 
 def signed_in(executable: str, home: Path) -> bool:
-    result = subprocess.run([executable, "auth", "status"], env=environment(home), capture_output=True)
+    result = native_run([executable, "auth", "status"], env=environment(home), capture_output=True)
     if result.returncode:
         return False
     try:
@@ -72,7 +73,7 @@ def login(store: Store, name: str) -> int:
     home = store.require(name)
     executable = binary()
     print(f"Sign in to the Claude subscription account to save as '{name}'.", flush=True)
-    result = subprocess.call([executable, "auth", "login"], env=environment(home))
+    result = native_call([executable, "auth", "login"], env=environment(home))
     if result:
         print(f"Login did not finish. Retry with: claude-switch login {name}", file=sys.stderr)
         return result if result > 0 else 1
@@ -140,7 +141,7 @@ def run(store: Store, args: argparse.Namespace) -> int:
     argv = [executable, *forwarded]
     if os.name == "posix":
         os.execve(executable, argv, environment(home))
-    return subprocess.call(argv, env=environment(home))
+    return native_call(argv, env=environment(home))
 
 
 def shell_init(shell: str) -> int:
