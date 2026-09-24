@@ -12,7 +12,7 @@ import sys
 
 from codex_switcher import SwitcherError
 from switcher_manager import TOOLS, adapter, as_data, conversations, launch_arguments, states, store_for
-from switcher_runtime import VERSION
+from switcher_runtime import VERSION, cli_command
 from switcher_setup import INSTALL_GUIDES, setup_hint
 
 
@@ -22,7 +22,8 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest="action", required=True)
     for tool, label in TOOLS.items():
         commands.add_parser(tool, help=f"Forward commands to the {label} adapter", add_help=False)
-    commands.add_parser("gui", help="Open the native GTK 4 desktop manager")
+    gui = commands.add_parser("gui", help="Open the desktop manager")
+    gui.add_argument("--backend", choices=("auto", "gtk", "qt"), default="auto")
     doctor = commands.add_parser("doctor", help="Check CLI availability and show setup guidance")
     doctor.add_argument("--json", action="store_true")
     status = commands.add_parser("status", help="Show all stores, accounts, and cached login status")
@@ -57,7 +58,7 @@ def terminal(arguments: list[str]) -> int:
         raise SwitcherError("Choose an existing project directory and a command.")
     print("$ " + shlex.join(["switcher", *args.command]), flush=True)
     # Keep this process (and its AppImage mount) alive while the CLI executes.
-    code = subprocess.call([sys.executable, str(Path(__file__).resolve()), *args.command], cwd=cwd)
+    code = subprocess.call(cli_command(args.command, standalone=False), cwd=cwd)
     print(f"\nCommand finished (exit {code}). Refresh the manager to see updates.", flush=True)
     if sys.stdin.isatty():
         try:
@@ -76,10 +77,17 @@ def main(argv: list[str] | None = None) -> int:
             return terminal(argv[1:])
         args = parser().parse_args(argv)
         if args.action == "gui":
+            backend = args.backend
+            if backend == "auto":
+                backend = "gtk" if sys.platform.startswith("linux") else "qt"
             try:
-                from switcher_gui import run
+                if backend == "qt":
+                    from switcher_qt import run
+                else:
+                    from switcher_gui import run
             except (ImportError, ValueError):
-                raise SwitcherError("The desktop manager requires PyGObject and GTK 4.6+. See README's desktop setup.") from None
+                requirement = "PySide6 (pip install 'yog-sothoth-switcher[desktop]')" if backend == "qt" else "PyGObject and GTK 4.6+"
+                raise SwitcherError(f"The desktop manager requires {requirement}. See README's desktop setup.") from None
             return run()
         snapshot = states()
         if args.action == "doctor":
