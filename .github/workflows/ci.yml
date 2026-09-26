@@ -1,4 +1,4 @@
-name: CLI and Linux desktop
+name: CLI and desktop packages
 
 on:
   push:
@@ -53,5 +53,34 @@ jobs:
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: Yog-Sothoth-Linux-x86_64
+          path: artifacts/*
+          if-no-files-found: error
+
+  desktop:
+    name: Desktop on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONUTF8: '1'
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Install desktop build dependencies
+        run: python -m pip install '.[desktop]' 'pyinstaller>=6.22.1,<7'
+      - name: Check terminal plans and account dropdowns
+        run: |
+          python -m unittest discover -s tests -p test_desktop.py -v
+          python -m unittest discover -s tests -p test_qt_gui.py -v
+      - name: Build and exercise standalone GUI and CLI
+        run: python scripts/build_desktop.py
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: Yog-Sothoth-${{ matrix.os }}
           path: artifacts/*
           if-no-files-found: error

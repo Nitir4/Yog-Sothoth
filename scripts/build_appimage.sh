@@ -7,7 +7,7 @@ mkdir -p "$output_dir"
 output_dir=$(CDPATH= cd -- "$output_dir" && pwd)
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT HUP INT TERM
-for file in switcher_cli.py switcher_manager.py switcher_gui.py switcher_runtime.py switcher_setup.py codex_switcher.py codex_history.py claude_switcher.py agy_switcher.py local_history.py pyproject.toml README.md switcher codex-switch claude-switch agy-switch; do
+for file in switcher_cli.py switcher_manager.py switcher_gui.py switcher_qt.py switcher_runtime.py switcher_setup.py codex_switcher.py codex_history.py claude_switcher.py agy_switcher.py local_history.py pyproject.toml README.md switcher codex-switch claude-switch agy-switch; do
     cp "$source_dir/$file" "$stage/$file"
 done
 mkdir -p "$stage/packaging/appimage" "$stage/tests"
