@@ -31,7 +31,7 @@ def main():
                        check=True, stdout=subprocess.DEVNULL)
         app = base / "squashfs-root"
         assert sorted(p.name for p in (app / "usr/share/yog-sothoth").iterdir()) == sorted(
-            ["switcher_cli.py", "switcher_manager.py", "switcher_gui.py", "switcher_runtime.py", "switcher_setup.py",
+            ["switcher_cli.py", "switcher_manager.py", "switcher_gui.py", "switcher_qt.py", "switcher_runtime.py", "switcher_setup.py",
              "codex_switcher.py", "codex_history.py", "claude_switcher.py", "agy_switcher.py", "local_history.py"])
         bundled = dict(env, APPDIR=str(app), APPIMAGE=str(image), YOG_SOTHOTH_BUNDLED="1",
                        LD_LIBRARY_PATH=str(app / "usr/lib/x86_64-linux-gnu"), PYTHONHOME=str(app / "usr"),

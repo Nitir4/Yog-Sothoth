@@ -261,7 +261,7 @@ class ManagerDataTest(unittest.TestCase):
         self.assertEqual(argv[:4], ["kitty", "--title", "My sessions", "--"])
         self.assertEqual(argv[-1], "$(touch ignored)")
         self.assertIn(str(self.base), argv)
-        with patch.dict(os.environ, {"SWITCHER_TERMINAL": ""}):
+        with patch.dict(os.environ, {"SWITCHER_TERMINAL": ""}), patch("switcher_manager.sys.platform", "linux"):
             with self.assertRaisesRegex(SwitcherError, "No supported terminal"):
                 manager.terminal_command(["codex", "run"], self.base, lookup=lambda _: None)
 
