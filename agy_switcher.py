@@ -27,7 +27,23 @@ SUPPORTED_SHA256S = frozenset({
     # Installed Linux build: native directories, SSH/file OAuth, and history
     # writes inspected; two temporary native MCP profiles verified isolation.
     "c54ef90651a8646ae67334d39212c81f5946feec373ad6aa335f9ef401662bc5",
+    # Linux 1.3.1: native CLI token paths and SSH keyring bypass inspected.
+    "ce1bdaed3201bb84f35d69d2773caec4f18af52af00e8c25f6cace07e4359615",
 })
+# 1.3.1 binaries from Google's installer manifest. Both CPU builds retain the
+# account-relative CLI token path, persistent SSH/file storage selection, and
+# the native directory flags. Unknown updates remain disabled.
+SUPPORTED_BUILDS = {
+    "linux": SUPPORTED_SHA256S,
+    "darwin": frozenset({
+        "4007928d5cac45ed392fb40ee623779ef8eba7f6402a6f16f7e03611e0c35b29",
+        "88db8b4d21ece4999fa58e0b54cea77154e47b319ee178d086c446262317f3fa",
+    }),
+    "win32": frozenset({
+        "38f30c7dd1ed808f5cf98fe2014de3d30903035a4f0df02d3eb72a9ff8993741",
+        "4468da63643d8c4d05110027c8c7f528ccfda4f78f2523e5adcefd3dfa8a0107",
+    }),
+}
 APP_DIRECTORY = "antigravity-cli"
 TOKEN_FILENAME = "antigravity-oauth-token"
 AUTH_OVERRIDES = (
@@ -59,9 +75,8 @@ def fingerprint(executable: str) -> str:
 
 
 def require_compatible(executable: str) -> None:
-    if not sys.platform.startswith("linux"):
-        raise SwitcherError("The AGY adapter currently supports the inspected Linux build only.")
-    if fingerprint(executable) not in SUPPORTED_SHA256S:
+    platform = "linux" if sys.platform.startswith("linux") else sys.platform
+    if fingerprint(executable) not in SUPPORTED_BUILDS.get(platform, ()):
         raise SwitcherError(
             "This AGY build has not been verified for account isolation. Run 'agy-switch doctor'. "
             "Its data-directory flags and SSH token storage must be checked before enabling it."
@@ -238,8 +253,9 @@ def run(store: Store, args: argparse.Namespace) -> int:
     launch_history(store, home, AGY)
     print(f"AGY account: {name}", file=sys.stderr, flush=True)
     argv = command(executable, home, forwarded)
-    os.execve(executable, argv, environment())
-    return 0
+    if os.name != "nt":
+        os.execve(executable, argv, environment())
+    return native_call(argv, env=environment())
 
 
 def shell_init(shell: str) -> int:
@@ -253,10 +269,11 @@ def shell_init(shell: str) -> int:
 def doctor() -> int:
     executable = binary()
     digest = fingerprint(executable)
-    supported = sys.platform.startswith("linux") and digest in SUPPORTED_SHA256S
+    platform = "linux" if sys.platform.startswith("linux") else sys.platform
+    supported = digest in SUPPORTED_BUILDS.get(platform, ())
     print(f"AGY executable: {executable}")
     print(f"SHA-256: {digest}")
-    print("Compatibility: " + ("inspected Linux build" if supported else "unverified; launches disabled"))
+    print("Compatibility: " + (f"inspected {platform} build" if supported else "unverified; launches disabled"))
     print("Profile mode: native data-directory flags + SSH/file-backed OAuth storage")
     return 0 if supported else 1
 
@@ -279,7 +296,7 @@ def parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--account", type=account_name)
     run_parser.add_argument("agy_args", nargs=argparse.REMAINDER)
     shell_parser = commands.add_parser("shell-init", help="Print an optional agy shell function")
-    shell_parser.add_argument("shell", choices=("zsh", "bash"))
+    shell_parser.add_argument("shell", choices=("zsh", "bash", "powershell"))
     from local_history import add_parser
 
     add_parser(commands)

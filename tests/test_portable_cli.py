@@ -1,5 +1,6 @@
 """Native-process CLI checks shared by Linux, macOS, and Windows runners."""
 
+import hashlib
 import io
 import json
 import os
@@ -19,10 +20,20 @@ FAKE = r'''
 import json, os, pathlib, sys
 args = sys.argv[1:]
 tool = os.environ['FIXTURE_TOOL']
-home = pathlib.Path(os.environ['CODEX_HOME' if tool == 'codex' else 'CLAUDE_CONFIG_DIR'])
-auth = home / ('auth.json' if tool == 'codex' else '.credentials.json')
+if tool == 'agy':
+    assert args[0].startswith('--gemini_dir=')
+    assert args[1:3] == ['--app_data_dir=antigravity-cli', '--use_host_auth=false']
+    home = pathlib.Path(args[0].split('=', 1)[1])
+    args = args[3:]
+    auth = home / 'antigravity-cli/antigravity-oauth-token'
+    auth.parent.mkdir(parents=True, exist_ok=True)
+else:
+    home = pathlib.Path(os.environ['CODEX_HOME' if tool == 'codex' else 'CLAUDE_CONFIG_DIR'])
+    auth = home / ('auth.json' if tool == 'codex' else '.credentials.json')
 if args == ['--help']:
     print('--no-daemon')
+elif tool == 'agy' and not args:
+    auth.write_text(json.dumps({'token': {'access_token': 'synthetic-access', 'refresh_token': 'synthetic-refresh'}}))
 elif tool == 'codex' and 'login' in args:
     if 'status' in args:
         raise SystemExit(0 if auth.exists() else 1)
@@ -33,12 +44,12 @@ elif args == ['auth', 'status']:
     print(json.dumps({'loggedIn': auth.exists(), 'authMethod': 'claude.ai', 'configDirectory': str(home)}))
 elif args[-1:] == ['fixture-refresh']:
     value = json.loads(auth.read_text())
-    key = 'tokens' if tool == 'codex' else 'claudeAiOauth'
-    field = 'refresh_token' if tool == 'codex' else 'refreshToken'
+    key = {'codex': 'tokens', 'claude': 'claudeAiOauth', 'agy': 'token'}[tool]
+    field = 'refreshToken' if tool == 'claude' else 'refresh_token'
     value[key][field] = 'synthetic-renewed'
     auth.write_text(json.dumps(value))
 else:
-    print(json.dumps({'home': str(home), 'args': args, 'api_key': ('OPENAI_API_KEY' if tool == 'codex' else 'ANTHROPIC_API_KEY') in os.environ}))
+    print(json.dumps({'home': str(home), 'args': args, 'api_key': {'codex': 'OPENAI_API_KEY', 'claude': 'ANTHROPIC_API_KEY', 'agy': 'GEMINI_API_KEY'}[tool] in os.environ}))
     if args[-1:] == ['fixture-fail']:
         raise SystemExit(7)
 '''
@@ -64,10 +75,13 @@ def executable_fixture(path: Path) -> Path:
 
 
 class PortableCliTest(unittest.TestCase):
+    tools = ("codex", "claude")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="yog cli spaces ")
         self.base = Path(self.temp.name)
         self.fake = executable_fixture(self.base / "native-fixture")
+        self.command = [sys.executable, str(PROJECT / "switcher_cli.py")]
         self.env = dict(os.environ)
         self.env.pop("APPIMAGE", None)
         self.env.pop("APPDIR", None)
@@ -81,14 +95,14 @@ class PortableCliTest(unittest.TestCase):
 
     def invoke(self, tool, *arguments, expected=0):
         env = dict(self.env, FIXTURE_TOOL=tool)
-        result = subprocess.run([sys.executable, str(PROJECT / "switcher_cli.py"), tool, *arguments],
+        result = subprocess.run([*self.command, tool, *arguments],
                                 cwd=self.base, env=env, capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         return result
 
     def test_accounts_refresh_arguments_and_exit_codes(self):
         literal = 'spaces; $(literal) `whoami` & | %PATH% "quoted" Unicode ✓'
-        for tool in ("codex", "claude"):
+        for tool in self.tools:
             with self.subTest(tool=tool):
                 self.invoke(tool, "add", "personal")
                 self.invoke(tool, "add", "work")
@@ -103,13 +117,14 @@ class PortableCliTest(unittest.TestCase):
                 self.invoke(tool, "run", "--", "fixture-refresh")
                 self.invoke(tool, "use", "personal")
                 self.invoke(tool, "use", "work")
-                auth = self.base / tool / "accounts/work" / ("auth.json" if tool == "codex" else ".credentials.json")
+                auth = self.base / tool / "accounts/work" / {"codex": "auth.json", "claude": ".credentials.json",
+                                                           "agy": "antigravity-cli/antigravity-oauth-token"}[tool]
                 self.assertIn("synthetic-renewed", auth.read_text())
                 self.invoke(tool, "run", "--", "fixture-fail", expected=7)
 
     def test_shell_integration_from_another_directory(self):
         import shutil
-        for tool in ("codex", "claude"):
+        for tool in self.tools:
             self.invoke(tool, "add", "personal")
             shells = ("powershell",) if os.name == "nt" else ("bash", "zsh")
             for shell in shells:
@@ -214,6 +229,31 @@ $acl = Get-Acl $env:FIXTURE_ACL_PATH
             self.invoke("codex", "history", "share", "--source-home", str(home))
             self.assertTrue(sessions.is_symlink())
             self.assertTrue((self.base / "codex/accounts/work/sessions/synthetic.jsonl").is_file())
+
+
+class PortableAgyCliTest(PortableCliTest):
+    tools = ("agy",)
+
+    def setUp(self):
+        super().setUp()
+        import shutil
+        from agy_switcher import SUPPORTED_SHA256
+        application = self.base / "app"
+        application.mkdir()
+        modules = ("switcher_cli", "switcher_manager", "switcher_runtime", "switcher_setup",
+                   "codex_switcher", "codex_history", "claude_switcher", "local_history")
+        for module in modules:
+            shutil.copy2(PROJECT / (module + ".py"), application / (module + ".py"))
+        # Trust a synthetic executable only in this disposable application copy.
+        # Production builds retain the reviewed platform-specific fingerprints.
+        digest = hashlib.sha256(self.fake.read_bytes()).hexdigest()
+        source = (PROJECT / "agy_switcher.py").read_text()
+        for fingerprint in (SUPPORTED_SHA256, "4007928d5cac45ed392fb40ee623779ef8eba7f6402a6f16f7e03611e0c35b29",
+                            "38f30c7dd1ed808f5cf98fe2014de3d30903035a4f0df02d3eb72a9ff8993741"):
+            source = source.replace(fingerprint, digest, 1)
+        (application / "agy_switcher.py").write_text(source)
+        self.command = [sys.executable, str(application / "switcher_cli.py")]
+        self.env.update(AGY_SWITCHER_AGY=str(self.fake), GEMINI_API_KEY="synthetic-key")
 
 
 if __name__ == "__main__":

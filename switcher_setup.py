@@ -1,7 +1,5 @@
 """Installation guidance shared by the CLI and desktop setup screen."""
 
-import sys
-
 INSTALL_GUIDES = {
     "codex": "https://learn.chatgpt.com/docs/codex/cli",
     "claude": "https://code.claude.com/docs/en/setup",
@@ -10,8 +8,6 @@ INSTALL_GUIDES = {
 
 
 def setup_hint(state) -> str:
-    if state.tool == "agy" and not sys.platform.startswith("linux"):
-        return "Antigravity account switching currently supports verified Linux builds only."
     if not state.installed:
         return f"Install {state.label}'s native CLI, then refresh to detect it."
     if not state.available:
