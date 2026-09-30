@@ -1,6 +1,5 @@
 """Qt dropdown persistence, conversation ownership, and render guards."""
 
-import json
 import os
 from pathlib import Path
 import tempfile

@@ -79,8 +79,20 @@ jobs:
           python -m unittest discover -s tests -p test_qt_gui.py -v
       - name: Build and exercise standalone GUI and CLI
         run: python scripts/build_desktop.py
+      - name: Verify native Antigravity profile isolation
+        run: python scripts/verify_agy_native.py
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: Yog-Sothoth-${{ matrix.os }}
           path: artifacts/*
           if-no-files-found: error
+
+  antigravity:
+    name: Native Antigravity on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: python scripts/verify_agy_native.py
