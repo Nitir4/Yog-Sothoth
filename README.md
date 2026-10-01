@@ -2,7 +2,7 @@
 
 Manage saved accounts and local conversation history across Codex CLI,
 Claude Code, and Google Antigravity CLI. Yog-Sothoth provides a unified CLI
-and an optional Linux desktop interface. Each account uses an isolated native
+and desktop interfaces for Linux, Windows, and macOS. Each account uses an isolated native
 data directory; history can optionally be shared between accounts of the same
 tool.
 
@@ -11,27 +11,29 @@ account. Each coding tool has its own saved default.
 
 ## Requirements and platform support
 
-Install Python **3.10+** and the coding CLI you want to use. The command-line
+For source and wheel installs, use Python **3.10+** and the coding CLI you want to use.
+Desktop downloads include Python. The command-line
 interface uses only Python's standard library. The coding tools remain separate
 installations and handle their own sign-in and subscriptions.
 
 | Platform | CLI | Desktop interface |
 | --- | --- | --- |
-| Linux | Codex, Claude Code, and verified Antigravity builds | GTK 4.6+ or bundled AppImage |
-| macOS | Codex and Claude Code; native CI checks on Python 3.10/3.12 | Not supported |
-| Windows | Codex and Claude Code; native executables and PowerShell CI checks | Not supported |
+| Linux | Codex, Claude Code, and verified Antigravity builds | GTK 4.6+; x86_64 AppImage |
+| macOS | All three tools; Bash/Zsh integration | Qt `.app` bundles for Apple Silicon and Intel |
+| Windows | All three tools; native executables and PowerShell integration | Qt portable ZIP containing a GUI `.exe` and console CLI |
 
-The Antigravity adapter supports only inspected Linux executable builds. Check
-compatibility with `./agy-switch doctor` before adding an account.
+Antigravity **1.3.1** is verified for Linux x86_64, macOS arm64/x86_64, and
+Windows arm64/x86_64. Previously inspected Linux fingerprints remain supported.
+Its internal profile flags require verification for each binary; unknown builds
+are refused. Check compatibility with `yog-sothoth agy doctor` before adding an
+account. Windows desktop downloads target x86_64; Windows arm64 can use the
+Python package. Additional Linux desktop architectures are not packaged.
 
-The Linux **x86_64 AppImage** bundles Python, PyGObject, and GTK. It targets
-glibc 2.35+ (Ubuntu 22.04 or newer, and current Arch Linux). Other Linux
-architectures, a Windows GUI executable, and a macOS GUI bundle are not
-provided. The CLI installs as a Python package on all three platforms.
-
-Antigravity remains Linux-only: its internal profile flags must be verified
-against each executable build. Installing the package on Windows or macOS does
-not enable unverified Antigravity account switching.
+The Linux AppImage bundles Python, PyGObject, and GTK. It targets glibc 2.35+
+(Ubuntu 22.04 or newer, and current Arch Linux). Windows and macOS downloads
+bundle Python and Qt, plus a separate console executable so sign-in and coding
+sessions have a terminal and can outlive the GUI. The coding CLIs remain
+separate installations on every platform.
 
 Native Codex behavior was checked against CLI **0.160.0**. Claude workflows are
 tested with a synthetic executable; real Claude sign-in and resume still need
@@ -52,7 +54,7 @@ yog-sothoth doctor
 
 Use `python3` if your system uses that name, or `py` on Windows. This command needs Git. Alternatively,
 download the `.whl` from [releases](https://github.com/Nitir4/Yog-Sothoth/releases)
-and install it with `python -m pip install ./yog_sothoth_switcher-0.2.0-py3-none-any.whl`.
+and install it with `python -m pip install ./yog_sothoth_switcher-0.3.0-py3-none-any.whl`.
 On Linux with an externally managed Python environment, use `pipx install
 "git+https://github.com/Nitir4/Yog-Sothoth.git"` or a virtual environment instead.
 
@@ -126,12 +128,12 @@ python3 codex-switch --help
 | `./switcher TOOL current` | Print the saved default |
 | `./switcher TOOL run -- [ARGS...]` | Launch the tool with its default account |
 | `./switcher TOOL run --account NAME -- [ARGS...]` | Use an account once without changing the default |
-| `./switcher TOOL shell-init zsh` | Print shell integration; Codex/Claude also support `bash` and `powershell` |
+| `./switcher TOOL shell-init zsh` | Print shell integration; also supports `bash` and `powershell` |
 | `./switcher TOOL history` | Inspect per-account or shared history storage |
 | `./switcher TOOL history share --source-home PATH` | Import and share that tool's local history |
 | `./switcher history` | Browse conversations across tools |
 | `./switcher resume TOOL ID --account NAME` | Resume a saved conversation in the current terminal |
-| `./switcher gui` | Open the Linux desktop manager |
+| `./switcher gui` | Open the desktop manager (GTK on Linux, Qt on Windows/macOS) |
 
 Replace `TOOL` with `codex`, `claude`, or `agy`. Pass native CLI arguments after
 `--`; arguments containing spaces must be quoted normally:
@@ -147,17 +149,56 @@ access. The native tools validate and refresh their credentials during use.
 Yog-Sothoth does not pool subscriptions or automatically move running tasks
 between accounts.
 
-## Linux desktop interface
+## Desktop interfaces
 
-### AppImage
+### Windows portable package
 
-Download `Yog-Sothoth-0.2.0-x86_64.AppImage` and its checksum from
+Download `Yog-Sothoth-0.3.0-Windows-x86_64.zip` from
+[releases](https://github.com/Nitir4/Yog-Sothoth/releases) and extract the complete
+folder. Open `Yog-Sothoth-Desktop.exe`. Keep `_internal/` and `yog-sothoth.exe`
+beside it: the GUI needs its libraries and the console helper. Python and Qt do
+not need separate installation. Sign-in and coding sessions open in a new
+Windows console.
+
+The same folder includes the standalone CLI. From PowerShell in that folder:
+
+```powershell
+.\yog-sothoth.exe doctor
+.\yog-sothoth.exe codex add personal
+.\yog-sothoth.exe codex run
+```
+
+### macOS application bundles
+
+Download `Yog-Sothoth-0.3.0-macOS-arm64.zip` for Apple Silicon, or
+`Yog-Sothoth-0.3.0-macOS-x86_64.zip` for Intel. Extract it and move
+`Yog-Sothoth-Desktop.app` to Applications. Open the app to manage accounts;
+sign-in and coding sessions open in the macOS Terminal app.
+
+The console helper is inside the bundle and remains available after closing the
+GUI. For example:
+
+```sh
+/Applications/Yog-Sothoth-Desktop.app/Contents/MacOS/yog-sothoth doctor
+/Applications/Yog-Sothoth-Desktop.app/Contents/MacOS/yog-sothoth codex run
+```
+
+The Windows and macOS packages are unsigned; macOS builds have an ad-hoc
+signature for bundle integrity, without Developer ID signing or notarization.
+The operating system may ask you to approve the downloaded app. On macOS, use
+[Apple's documented Open Anyway procedure](https://support.apple.com/en-us/102445)
+if Gatekeeper blocks an app you trust. Do not remove individual files from the
+bundle or copy the GUI executable alone.
+
+### Linux AppImage
+
+Download `Yog-Sothoth-0.3.0-x86_64.AppImage` and its checksum from
 [releases](https://github.com/Nitir4/Yog-Sothoth/releases). In the download folder:
 
 ```sh
-sha256sum -c Yog-Sothoth-0.2.0-x86_64.AppImage.sha256
-chmod +x Yog-Sothoth-0.2.0-x86_64.AppImage
-./Yog-Sothoth-0.2.0-x86_64.AppImage
+sha256sum -c Yog-Sothoth-0.3.0-x86_64.AppImage.sha256
+chmod +x Yog-Sothoth-0.3.0-x86_64.AppImage
+./Yog-Sothoth-0.3.0-x86_64.AppImage
 ```
 
 Double-clicking the executable opens the GUI. Python and GTK do not need to be
@@ -167,14 +208,14 @@ are still required; the coding CLIs must be installed on the host.
 If FUSE mounting is unavailable, run:
 
 ```sh
-./Yog-Sothoth-0.2.0-x86_64.AppImage --appimage-extract-and-run
+./Yog-Sothoth-0.3.0-x86_64.AppImage --appimage-extract-and-run
 ```
 
 The same file exposes the CLI when given arguments:
 
 ```sh
-./Yog-Sothoth-0.2.0-x86_64.AppImage doctor
-./Yog-Sothoth-0.2.0-x86_64.AppImage codex run
+./Yog-Sothoth-0.3.0-x86_64.AppImage doctor
+./Yog-Sothoth-0.3.0-x86_64.AppImage codex run
 ```
 
 The first startup opens tool setup if no accounts are saved. Use **Setup tools…**
@@ -183,7 +224,7 @@ home directory, outside the AppImage. Replacing or moving the AppImage does not
 remove saved accounts. Terminals launched by the GUI keep their own AppImage
 runtime so closing the manager does not invalidate their launch command.
 
-### GUI from source or an installed package
+### Linux GTK GUI from source or an installed package
 
 Install PyGObject and **GTK 4.6+**, using your distribution's system Python:
 
@@ -220,7 +261,20 @@ uses the conversation's saved project directory; select **Resume in the chosen
 project directory** if the original project was moved. Sign-in and history
 migration run in a terminal. Click **Refresh** after they finish.
 
-### Application-menu launcher
+### Qt GUI from source or an installed package
+
+On Windows or macOS, install the optional desktop dependencies:
+
+```sh
+python -m pip install "yog-sothoth-switcher[desktop] @ git+https://github.com/Nitir4/Yog-Sothoth.git"
+yog-sothoth gui
+```
+
+From a checkout, use `python -m pip install '.[desktop]'` and
+`python switcher_cli.py gui`. Linux can also use this interface by adding
+`--backend qt`; GTK remains the Linux default. The CLI alone does not require Qt.
+
+### Linux application-menu launcher
 
 Install a launcher configured for your checkout and Python interpreter:
 
@@ -253,7 +307,7 @@ Your desktop may require you to allow launching that shortcut.
 
 ### Terminal and executable detection
 
-The desktop manager tries Kitty, GNOME Terminal, Konsole, Xfce Terminal,
+On Linux, the desktop manager tries Kitty, GNOME Terminal, Konsole, Xfce Terminal,
 WezTerm, and xterm, in that order. Override detection with a command prefix that
 accepts a program and its arguments:
 
@@ -261,9 +315,13 @@ accepts a program and its arguments:
 SWITCHER_TERMINAL='kitty --title "Coding session" --' python3 switcher gui
 ```
 
-Terminal launches use argument lists without shell evaluation. If a tool is
+Windows opens a console directly; macOS passes individually quoted arguments
+to Terminal through AppleScript data parameters. Linux uses direct argument
+lists. Prompts and paths are preserved literally. If a tool is
 shown as **Unavailable**, check its installation and `PATH`. The adapters also
-look in `~/.local/bin` if the executable is missing from `PATH`. An explicit
+look in `~/.local/bin` if the executable is missing from `PATH`, plus standard
+Homebrew locations on macOS and `%LOCALAPPDATA%\agy\bin` for Antigravity on
+Windows. An explicit
 executable override takes precedence. Restart the manager after changing its
 environment.
 
@@ -300,6 +358,7 @@ instead of checkout paths. In PowerShell:
 ```powershell
 codex-switch shell-init powershell | Out-String | Invoke-Expression
 claude-switch shell-init powershell | Out-String | Invoke-Expression
+agy-switch shell-init powershell | Out-String | Invoke-Expression
 codex "Review this project"
 ```
 
@@ -469,8 +528,8 @@ manual sign-in and file-backed OAuth storage. The caller's `HOME` and SSH
 variables stay unchanged. Profiles have fresh settings; credentials, plugins,
 skills, and project state are not copied from the original home.
 
-These directory flags are internal. Launches require Linux and an executable
-fingerprint listed in `agy_switcher.py`. `doctor` reports the executable path,
+These directory flags are internal. Launches require a platform-specific
+executable fingerprint listed in `agy_switcher.py`. `doctor` reports the executable path,
 fingerprint, and compatibility result. Unsupported builds are refused before
 account creation or launch; `list` and `current` remain available.
 
@@ -568,8 +627,19 @@ checks with a virtual display and tests fresh first-run setup. On a local system
 without a display, the real-window test is skipped. Synthetic checks validate
 wrapper behavior; live Claude sign-in and switching between Antigravity accounts
 still require validation with the providers' real CLIs. Native Antigravity data
-paths, selected executable fingerprints, MCP-profile isolation, and history
-migration were inspected on Linux.
+token paths and SSH/file-storage branches were inspected in the pinned Linux,
+macOS, and Windows binaries. CI downloads Antigravity 1.3.1 directly from Google's
+release storage, verifies the inspected executable hash, and checks two isolated
+native MCP profiles on Linux, Windows x86_64, and both macOS architectures.
+Windows arm64 storage branches were inspected statically; native CI execution
+currently covers x86_64. No real Google login is included in these checks.
+
+Qt checks require the `desktop` extra. Native Windows/macOS jobs build the GUI
+and console helper with PyInstaller, start the packaged GUI, and exercise the
+standalone CLI outside the checkout. Tests check paths containing spaces,
+literal shell characters, persistent defaults, refresh behavior, and native
+process exit codes. GUI checks use an offscreen display in CI; manually checking
+native sign-in, Terminal windows, and desktop appearance is still useful.
 
 ## Build distributable packages
 
@@ -596,3 +666,28 @@ manifest. The runtime checksum must be reviewed when updating its upstream pin.
 The CI AppImage job also uploads the tested AppImage, checksum, and wheel as
 workflow artifacts. Neither the wheel nor AppImage contains account credentials,
 conversation history, or user settings.
+
+Build the Windows or macOS desktop package **on its target operating system**:
+
+```sh
+python -m pip install '.[desktop]' 'pyinstaller>=6.22.1,<7'
+python scripts/build_desktop.py
+```
+
+The build creates a GUI with replaceable Qt libraries and a standalone console
+helper, runs packaged GUI/CLI checks, then writes a ZIP and SHA-256 checksum to
+`artifacts/`. macOS builds preserve bundle permissions and symlinks and apply an
+ad-hoc signature after adding the helper. Build on an Intel Mac for x86_64 or
+Apple Silicon for arm64; this script does not cross-compile. Run the GUI
+executable with `--check` to repeat its startup diagnostic.
+
+The desktop bundles preserve the installed Qt/PySide and PyInstaller license
+notices under `licenses/` (inside `Contents/Resources` on macOS). Qt/PySide are
+third-party dependencies; their open-source license terms apply. The complete
+application source and rebuild instructions are available in this repository.
+See [Qt licensing](https://doc.qt.io/qt-6/licensing.html).
+
+CI uploads Windows, both macOS architectures, and Linux packages as workflow
+artifacts. Release downloads are reviewed before publication; local account
+stores, credentials, conversation history, checkout metadata, and assistant
+workspace files are excluded.
