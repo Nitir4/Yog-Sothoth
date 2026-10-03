@@ -40,6 +40,8 @@ def build():
     shutil.copy2(PROJECT / "README.md", docs / "README.md")
     # Preserve Qt/PySide notices alongside the bundled libraries.
     licenses = docs / "licenses"
+    from desktop_licenses import collect
+    collect(licenses)
     for distribution in ("PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6", "pyinstaller"):
         try:
             dist = metadata.distribution(distribution)

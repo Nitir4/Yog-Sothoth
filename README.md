@@ -681,8 +681,11 @@ ad-hoc signature after adding the helper. Build on an Intel Mac for x86_64 or
 Apple Silicon for arm64; this script does not cross-compile. Run the GUI
 executable with `--check` to repeat its startup diagnostic.
 
-The desktop bundles preserve the installed Qt/PySide and PyInstaller license
-notices under `licenses/` (inside `Contents/Resources` on macOS). Qt/PySide are
+The desktop build downloads license and copyright notices from the matching
+upstream Qt/PySide source releases and Python version, records their source URLs,
+and preserves installed PyInstaller notices under `licenses/` (inside
+`Contents/Resources` on macOS). Network access is required for these notices.
+Qt/PySide are
 third-party dependencies; their open-source license terms apply. The complete
 application source and rebuild instructions are available in this repository.
 See [Qt licensing](https://doc.qt.io/qt-6/licensing.html).

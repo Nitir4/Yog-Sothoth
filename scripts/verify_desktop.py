@@ -20,6 +20,9 @@ def main():
         bin_dir = package
     cli = bin_dir / ("yog-sothoth.exe" if os.name == "nt" else "yog-sothoth")
     gui = bin_dir / ("Yog-Sothoth-Desktop.exe" if os.name == "nt" else "Yog-Sothoth-Desktop")
+    docs = package / "Contents/Resources" if sys.platform == "darwin" else package
+    assert (docs / "licenses/qt-qtbase/LICENSES/LGPL-3.0-only.txt").is_file()
+    assert (docs / "licenses/Python/LICENSE").is_file()
     spec = importlib.util.spec_from_file_location("portable", PROJECT / "tests/test_portable_cli.py")
     portable = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(portable)
