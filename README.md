@@ -694,3 +694,9 @@ CI uploads Windows, both macOS architectures, and Linux packages as workflow
 artifacts. Release downloads are reviewed before publication; local account
 stores, credentials, conversation history, checkout metadata, and assistant
 workspace files are excluded.
+
+Pushing a version tag, such as `v0.3.0`, runs the full native CI suite through
+the release workflow. Publication proceeds only after every job passes and the
+release inventory, checksums, license notices, and private-file exclusions are
+checked. The tag must match the application version. Releases are marked as
+prereleases while live provider sign-in validation remains incomplete.
