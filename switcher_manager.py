@@ -17,7 +17,8 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from codex_switcher import Store, SwitcherError, account_name, read_auth
 from switcher_runtime import cli_command, external_libraries
@@ -274,7 +275,12 @@ def workspace(value) -> str:
     if not isinstance(value, list) or not value or not isinstance(value[0], str):
         return ""
     uri = urlparse(value[0])
-    return unquote(uri.path) if uri.scheme == "file" and uri.netloc in ("", "localhost") else value[0]
+    if uri.scheme == "file":
+        if uri.netloc.casefold() in ("", "localhost"):
+            return url2pathname(uri.path)
+        if os.name == "nt":
+            return url2pathname("//" + uri.netloc + uri.path)
+    return value[0]
 
 
 def agy_records(root: Path):

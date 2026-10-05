@@ -10,11 +10,20 @@ import unittest
 from unittest.mock import patch
 
 from codex_switcher import SwitcherError
-from switcher_manager import open_terminal, terminal_command
+from switcher_manager import open_terminal, terminal_command, workspace
 from switcher_runtime import cli_command, external_environment
 
 
 class DesktopLaunchTest(unittest.TestCase):
+    def test_project_file_uri_preserves_drive_spaces_and_literal_percent(self):
+        uri = '["file:///C:/workspace%20folder/literal%2520"]'
+        expected = r"C:\workspace folder\literal%20" if os.name == "nt" else "/C:/workspace folder/literal%20"
+        self.assertEqual(workspace(uri), expected)
+
+    @unittest.skipUnless(os.name == "nt", "Windows network project paths")
+    def test_windows_network_project_uri(self):
+        self.assertEqual(workspace(['file://build-server/shared%20project']), r"\\build-server\shared project")
+
     def test_frozen_gui_uses_console_helper(self):
         with tempfile.TemporaryDirectory(prefix="desktop spaces ") as directory:
             base = Path(directory)
