@@ -1,7 +1,7 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Yog-Sothoth
+Name=yog-sototh
 Comment=Manage coding accounts and resume conversations
 Exec=python3 @SWITCHER_SCRIPT@ gui
 TryExec=python3

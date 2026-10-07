@@ -20,7 +20,7 @@ from codex_switcher import SwitcherError, account_name
 from switcher_manager import (
     TOOLS, conversations, launch_arguments, manager_environment, open_terminal, states,
 )
-from switcher_runtime import VERSION, cli_command, native_run
+from switcher_runtime import APP_NAME, VERSION, cli_command, native_run
 from switcher_setup import INSTALL_GUIDES, setup_hint
 
 
@@ -48,7 +48,7 @@ def load():
 class ManagerWindow(QMainWindow):
     def __init__(self, *, auto_refresh=True):
         super().__init__()
-        self.setWindowTitle("Yog-Sothoth")
+        self.setWindowTitle(APP_NAME)
         self.resize(1060, 720)
         self.snapshot, self.records, self.visible = [], [], []
         self.tool, self.record = "codex", None
@@ -61,7 +61,7 @@ class ManagerWindow(QMainWindow):
         layout.setSpacing(12)
         self.setCentralWidget(page)
         heading = QHBoxLayout()
-        title = QLabel("Yog-Sothoth")
+        title = QLabel(APP_NAME)
         title.setStyleSheet("font-size: 25px; font-weight: 600;")
         heading.addWidget(title)
         heading.addStretch()
@@ -418,7 +418,7 @@ class ManagerWindow(QMainWindow):
 
 def run() -> int:
     app = QApplication.instance() or QApplication([])
-    app.setApplicationName("Yog-Sothoth")
+    app.setApplicationName(APP_NAME)
     app.setApplicationVersion(VERSION)
     window = ManagerWindow()
     window.show()

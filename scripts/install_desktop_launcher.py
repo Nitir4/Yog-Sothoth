@@ -40,7 +40,7 @@ def main() -> int:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(content)
         output.chmod(0o644)
-        print(f"Installed Yog-Sothoth launcher: {output}")
+        print(f"Installed yog-sototh launcher: {output}")
         return 0
     except OSError as exc:
         print(f"Could not install the desktop launcher: {exc}", file=sys.stderr)

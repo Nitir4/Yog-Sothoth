@@ -20,7 +20,7 @@ from switcher_manager import (
     PROJECT, TOOLS, Conversation, conversations, launch_arguments,
     manager_environment, open_terminal, states,
 )
-from switcher_runtime import cli_command
+from switcher_runtime import APP_NAME, cli_command
 from switcher_setup import INSTALL_GUIDES, setup_hint
 
 CSS = b"""
@@ -96,7 +96,7 @@ def css_provider():
 
 class ManagerWindow(Gtk.ApplicationWindow):
     def __init__(self, application, *, loader=None):
-        super().__init__(application=application, title="Yog-Sothoth — Accounts & history")
+        super().__init__(application=application, title=APP_NAME)
         self.set_default_size(1160, 800)
         self.set_size_request(920, 650)
         self.snapshot = []
@@ -124,7 +124,7 @@ class ManagerWindow(Gtk.ApplicationWindow):
         self.set_child(shell)
         sidebar = box(vertical=True, spacing=10, css="sidebar")
         sidebar.set_size_request(210, -1)
-        sidebar.append(label("Y / YOG-SOTHOTH", "eyebrow"))
+        sidebar.append(label(APP_NAME, "eyebrow"))
         brand = label("Your tools.\nOne place.", "brand")
         brand.set_margin_top(16)
         brand.set_margin_bottom(22)
@@ -328,7 +328,7 @@ class ManagerWindow(Gtk.ApplicationWindow):
     def show_setup(self):
         self.setup_shown = True
         dialog, body = self.form("Set up your coding tools")
-        body.append(label("Install the coding CLIs you use, then add your accounts. Yog-Sothoth uses their normal sign-in flows.",
+        body.append(label(f"Install the coding CLIs you use, then add your accounts. {APP_NAME} uses their normal sign-in flows.",
                           "muted", wrap=True))
         for state in self.snapshot:
             card = box(vertical=True, spacing=8, css="card")
@@ -637,6 +637,7 @@ def run() -> int:
         raise SwitcherError("The desktop manager requires GTK 4.6 or newer.")
     if not Gtk.init_check() or Gdk.Display.get_default() is None:
         raise SwitcherError("No graphical display is available. Use 'switcher status' and 'switcher history' from this terminal.")
+    GLib.set_application_name(APP_NAME)
     app = Gtk.Application(application_id="io.github.cli_switcher.Manager", flags=Gio.ApplicationFlags.NON_UNIQUE)
 
     def activate(application):

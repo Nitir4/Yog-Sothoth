@@ -10,7 +10,8 @@ import shlex
 import sys
 import threading
 
-VERSION = "0.3.1"
+APP_NAME = "yog-sototh"
+VERSION = "0.3.2"
 
 BUNDLE_VARIABLES = ("LD_LIBRARY_PATH", "PYTHONHOME", "PYTHONPATH", "GI_TYPELIB_PATH",
                     "GIO_EXTRA_MODULES", "GSETTINGS_SCHEMA_DIR", "XDG_DATA_DIRS", "GSK_RENDERER",
