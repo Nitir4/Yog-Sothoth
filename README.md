@@ -54,7 +54,7 @@ yog-sothoth doctor
 
 Use `python3` if your system uses that name, or `py` on Windows. This command needs Git. Alternatively,
 download the `.whl` from [releases](https://github.com/Nitir4/Yog-Sothoth/releases)
-and install it with `python -m pip install ./yog_sothoth_switcher-0.3.0-py3-none-any.whl`.
+and install it with `python -m pip install ./yog_sothoth_switcher-0.3.1-py3-none-any.whl`.
 On Linux with an externally managed Python environment, use `pipx install
 "git+https://github.com/Nitir4/Yog-Sothoth.git"` or a virtual environment instead.
 
@@ -153,7 +153,7 @@ between accounts.
 
 ### Windows portable package
 
-Download `Yog-Sothoth-0.3.0-Windows-x86_64.zip` from
+Download `Yog-Sothoth-0.3.1-Windows-x86_64.zip` from
 [releases](https://github.com/Nitir4/Yog-Sothoth/releases) and extract the complete
 folder. Open `Yog-Sothoth-Desktop.exe`. Keep `_internal/` and `yog-sothoth.exe`
 beside it: the GUI needs its libraries and the console helper. Python and Qt do
@@ -170,8 +170,8 @@ The same folder includes the standalone CLI. From PowerShell in that folder:
 
 ### macOS application bundles
 
-Download `Yog-Sothoth-0.3.0-macOS-arm64.zip` for Apple Silicon, or
-`Yog-Sothoth-0.3.0-macOS-x86_64.zip` for Intel. Extract it and move
+Download `Yog-Sothoth-0.3.1-macOS-arm64.zip` for Apple Silicon, or
+`Yog-Sothoth-0.3.1-macOS-x86_64.zip` for Intel. Extract it and move
 `Yog-Sothoth-Desktop.app` to Applications. Open the app to manage accounts;
 sign-in and coding sessions open in the macOS Terminal app.
 
@@ -192,13 +192,13 @@ bundle or copy the GUI executable alone.
 
 ### Linux AppImage
 
-Download `Yog-Sothoth-0.3.0-x86_64.AppImage` and its checksum from
+Download `Yog-Sothoth-0.3.1-x86_64.AppImage` and its checksum from
 [releases](https://github.com/Nitir4/Yog-Sothoth/releases). In the download folder:
 
 ```sh
-sha256sum -c Yog-Sothoth-0.3.0-x86_64.AppImage.sha256
-chmod +x Yog-Sothoth-0.3.0-x86_64.AppImage
-./Yog-Sothoth-0.3.0-x86_64.AppImage
+sha256sum -c Yog-Sothoth-0.3.1-x86_64.AppImage.sha256
+chmod +x Yog-Sothoth-0.3.1-x86_64.AppImage
+./Yog-Sothoth-0.3.1-x86_64.AppImage
 ```
 
 Double-clicking the executable opens the GUI. Python and GTK do not need to be
@@ -208,14 +208,14 @@ are still required; the coding CLIs must be installed on the host.
 If FUSE mounting is unavailable, run:
 
 ```sh
-./Yog-Sothoth-0.3.0-x86_64.AppImage --appimage-extract-and-run
+./Yog-Sothoth-0.3.1-x86_64.AppImage --appimage-extract-and-run
 ```
 
 The same file exposes the CLI when given arguments:
 
 ```sh
-./Yog-Sothoth-0.3.0-x86_64.AppImage doctor
-./Yog-Sothoth-0.3.0-x86_64.AppImage codex run
+./Yog-Sothoth-0.3.1-x86_64.AppImage doctor
+./Yog-Sothoth-0.3.1-x86_64.AppImage codex run
 ```
 
 The first startup opens tool setup if no accounts are saved. Use **Setup tools…**
@@ -695,7 +695,7 @@ artifacts. Release downloads are reviewed before publication; local account
 stores, credentials, conversation history, checkout metadata, and assistant
 workspace files are excluded.
 
-Pushing a version tag, such as `v0.3.0`, runs the full native CI suite through
+Pushing a version tag, such as `v0.3.1`, runs the full native CI suite through
 the release workflow. Publication proceeds only after every job passes and the
 release inventory, checksums, license notices, and private-file exclusions are
 checked. The tag must match the application version. Releases are marked as

@@ -10,7 +10,7 @@ import shlex
 import sys
 import threading
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 BUNDLE_VARIABLES = ("LD_LIBRARY_PATH", "PYTHONHOME", "PYTHONPATH", "GI_TYPELIB_PATH",
                     "GIO_EXTRA_MODULES", "GSETTINGS_SCHEMA_DIR", "XDG_DATA_DIRS", "GSK_RENDERER",
