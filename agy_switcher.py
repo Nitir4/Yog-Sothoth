@@ -219,7 +219,9 @@ def use(store: Store, name: str) -> int:
     if not cached(home):
         raise SwitcherError(f"No saved OAuth login for '{name}'. Run: agy-switch login {name}")
     store.select(name)
-    print(f"Selected '{name}' for future launches. Running sessions keep their account.")
+    print(f"Selected '{name}' for future wrapper launches. Running sessions keep their account.")
+    print("Launch with 'agy-switch run'. Bare 'agy' uses its original login unless shell integration is enabled.")
+    print("Enable it with 'agy-switch shell-init zsh', 'bash', or 'powershell'; evaluate the printed function in your shell.")
     return 0
 
 

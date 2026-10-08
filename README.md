@@ -529,6 +529,14 @@ See Claude's [environment variables](https://code.claude.com/docs/en/env-vars),
 ./agy-switch run
 ```
 
+`use` selects the account for `agy-switch run`. If you launch by typing `agy`,
+enable [shell integration](#keep-using-the-native-command-names) first; otherwise
+AGY opens its original login even after a successful `use`. In zsh, from this
+checkout, run `eval "$(./agy-switch shell-init zsh)"`. To keep it enabled in new
+terminals, add that line to `~/.zshrc` using the absolute path to `agy-switch`.
+Already-running AGY sessions keep their account; exit and launch again after
+switching.
+
 `add` opens the native AGY session. Complete its URL/code sign-in and type
 `/exit` to return to the wrapper. Existing file-backed OAuth logins can be
 imported with `--import-current --source-home /path/to/.gemini`; keyring-only

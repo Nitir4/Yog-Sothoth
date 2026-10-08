@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import stat
 import subprocess
@@ -254,6 +255,25 @@ class AgySwitcherTest(unittest.TestCase):
                                     capture_output=True, text=True, env=self.env)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["args"], ["-p", "spaces; $(literal)"])
+
+    def test_shell_function_reads_selected_account_on_each_launch(self):
+        self.import_account("personal")
+        self.import_account("work")
+        for shell in ("zsh", "bash"):
+            if not shutil.which(shell):
+                continue
+            self.invoke("use", "personal")
+            code = self.invoke("shell-init", shell).stdout
+            select = [sys.executable, str(self.script), "use", "work"]
+            script = (code + "\nagy -p first\n" + shlex.join(select)
+                      + " >/dev/null\nagy -p 'spaces; $(literal)'\n")
+            result = subprocess.run([shell, "-c", script], cwd=self.original,
+                                    capture_output=True, text=True, env=self.env, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            launches = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual([Path(launch["home"]).name for launch in launches], ["personal", "work"])
+            self.assertEqual(launches[1]["args"], ["-p", "spaces; $(literal)"])
+            self.assertEqual(self.invoke("current").stdout.strip(), "work")
 
 
 if __name__ == "__main__":
